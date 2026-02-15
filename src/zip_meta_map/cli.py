@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -55,6 +56,18 @@ def main(argv: list[str] | None = None) -> int:
         "--manifest-only",
         action="store_true",
         help="Emit only META_ZIP_INDEX.json (no FRONT.md), useful for pipelines",
+    )
+    build_parser.add_argument(
+        "--summary",
+        action="store_true",
+        help="Write a step summary to $GITHUB_STEP_SUMMARY (or stdout if not in CI)",
+    )
+    build_parser.add_argument(
+        "--report",
+        choices=["md"],
+        default=None,
+        dest="report_format",
+        help="Generate a detailed standalone markdown report",
     )
 
     # explain command
@@ -150,6 +163,33 @@ def _cmd_build(args: argparse.Namespace) -> int:
             print(f"  Warnings: {len(warnings)}")
     else:
         _print_build_output(front, index, args.output_format, manifest_only)
+
+    # Derive project name from input path
+    project_name = input_path.stem if input_path.suffix == ".zip" else input_path.name
+
+    # Step summary
+    if args.summary:
+        from zip_meta_map.report import build_step_summary
+
+        summary_md = build_step_summary(index, project_name)
+        summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+        if summary_path:
+            with open(summary_path, "a", encoding="utf-8") as f:
+                f.write(summary_md + "\n")
+        else:
+            print(summary_md)
+
+    # Report
+    if args.report_format:
+        from zip_meta_map.report import build_report
+
+        report_md = build_report(index, project_name)
+        if output_dir:
+            output_dir.mkdir(parents=True, exist_ok=True)
+            (output_dir / "META_ZIP_REPORT.md").write_text(report_md, encoding="utf-8")
+            print(f"Wrote META_ZIP_REPORT.md to {output_dir}/")
+        else:
+            print(report_md)
 
     return 0
 

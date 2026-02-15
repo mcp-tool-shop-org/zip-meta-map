@@ -247,3 +247,100 @@ def test_cli_explain_json_includes_capabilities(capsys):
     captured = capsys.readouterr()
     data = json.loads(captured.out)
     assert "capabilities" in data
+
+
+# ── Phase 4: Step summary and report flags ──
+
+
+def test_cli_build_summary_stdout(capsys):
+    """--summary without GITHUB_STEP_SUMMARY should print to stdout."""
+    code = main(["build", str(FIXTURE_DIR), "--summary"])
+    assert code == 0
+    captured = capsys.readouterr()
+    assert "zip-meta-map:" in captured.out
+    assert "Start Here" in captured.out
+    assert "Role Distribution" in captured.out
+
+
+def test_cli_build_summary_writes_to_file(tmp_path, monkeypatch, capsys):
+    """--summary with GITHUB_STEP_SUMMARY should append to that file."""
+    summary_file = tmp_path / "summary.md"
+    summary_file.write_text("")
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary_file))
+
+    code = main(["build", str(FIXTURE_DIR), "--summary"])
+    assert code == 0
+
+    content = summary_file.read_text()
+    assert "zip-meta-map:" in content
+    assert "Start Here" in content
+
+
+def test_cli_build_summary_appends(tmp_path, monkeypatch, capsys):
+    """Multiple --summary writes should append, not overwrite."""
+    summary_file = tmp_path / "summary.md"
+    summary_file.write_text("# Previous content\n")
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary_file))
+
+    main(["build", str(FIXTURE_DIR), "--summary"])
+    content = summary_file.read_text()
+    assert "Previous content" in content
+    assert "zip-meta-map:" in content
+
+
+def test_cli_build_summary_no_auto_detect(capsys, monkeypatch):
+    """Without --summary, GITHUB_STEP_SUMMARY should NOT be written."""
+    import tempfile
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
+        summary_path = f.name
+        f.write("")
+
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", summary_path)
+    main(["build", str(FIXTURE_DIR)])
+    capsys.readouterr()
+
+    content = Path(summary_path).read_text()
+    assert content == ""  # Should not have been written
+    Path(summary_path).unlink()
+
+
+def test_cli_build_report_stdout(capsys):
+    """--report md without -o should print report to stdout."""
+    code = main(["build", str(FIXTURE_DIR), "--report", "md"])
+    assert code == 0
+    captured = capsys.readouterr()
+    assert "zip-meta-map Report:" in captured.out
+    assert "File Inventory" in captured.out
+    assert "advisory" in captured.out
+
+
+def test_cli_build_report_output_dir(tmp_path, capsys):
+    """--report md with -o should write META_ZIP_REPORT.md."""
+    out = tmp_path / "output"
+    code = main(["build", str(FIXTURE_DIR), "-o", str(out), "--report", "md"])
+    assert code == 0
+    report_path = out / "META_ZIP_REPORT.md"
+    assert report_path.exists()
+    content = report_path.read_text()
+    assert "zip-meta-map Report:" in content
+
+
+def test_cli_build_summary_and_report_together(tmp_path, capsys):
+    """--summary and --report md should both work together."""
+    out = tmp_path / "output"
+    code = main(["build", str(FIXTURE_DIR), "-o", str(out), "--summary", "--report", "md"])
+    assert code == 0
+    captured = capsys.readouterr()
+    # Summary should be printed to stdout (no GITHUB_STEP_SUMMARY set)
+    assert "zip-meta-map:" in captured.out
+    # Report should be written to file
+    assert (out / "META_ZIP_REPORT.md").exists()
+
+
+def test_cli_build_summary_with_manifest_only(capsys):
+    """--summary should work with --manifest-only."""
+    code = main(["build", str(FIXTURE_DIR), "--manifest-only", "--summary"])
+    assert code == 0
+    captured = capsys.readouterr()
+    assert "zip-meta-map:" in captured.out

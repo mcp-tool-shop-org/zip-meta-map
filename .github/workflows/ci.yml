@@ -57,3 +57,10 @@ jobs:
           jsonschema.validate(index, load_index_schema())
           print('Schema validation passed')
           "
+
+      - name: Summary and report smoke test
+        run: |
+          zip-meta-map build tests/fixtures/tiny_python_cli -o /tmp/zmm-summary --summary --report md
+          test -f /tmp/zmm-summary/META_ZIP_INDEX.json
+          test -f /tmp/zmm-summary/META_ZIP_FRONT.md
+          test -f /tmp/zmm-summary/META_ZIP_REPORT.md
