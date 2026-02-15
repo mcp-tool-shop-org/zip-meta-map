@@ -132,6 +132,18 @@ runs:
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
+        # Skip fork PRs — token lacks write permissions on forks
+        if [ "${{ github.event.pull_request.head.repo.fork }}" = "true" ]; then
+          echo "::notice::Skipping PR comment on fork PR (insufficient permissions)"
+          exit 0
+        fi
+
+        # Verify gh CLI is available
+        if ! command -v gh &> /dev/null; then
+          echo "::warning::gh CLI not found — skipping PR comment. Install gh or use actions/checkout which bundles it."
+          exit 0
+        fi
+
         INDEX_PATH="${{ inputs.output-dir }}/META_ZIP_INDEX.json"
         PROJECT_NAME=$(basename "${{ inputs.path }}")
         [ -z "$PROJECT_NAME" ] && PROJECT_NAME="project"

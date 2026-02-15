@@ -51,6 +51,8 @@ jobs:
 
 ## With PR comment
 
+Posts a step summary as a comment on pull requests.
+
 ```yaml
 # .github/workflows/metadata-pr.yml
 name: Metadata PR comment
@@ -74,6 +76,12 @@ jobs:
           path: .
           pr-comment: 'true'
 ```
+
+**Notes:**
+- Requires `pull-requests: write` permission (set at workflow or job level)
+- The default `GITHUB_TOKEN` is used automatically — no secrets needed
+- Fork PRs are skipped automatically (the token lacks write access on forks)
+- If your repo has restrictive workflow permissions, go to Settings > Actions > General > Workflow permissions and enable "Read and write permissions"
 
 ## Outputs
 

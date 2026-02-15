@@ -287,3 +287,79 @@ def test_build_capabilities_validated():
     """Capabilities should pass schema validation."""
     _, index = build(FIXTURE_DIR)
     validate_index(index)
+
+
+# ── Phase 7: Multi-profile stability tests ──
+
+NODE_FIXTURE = Path(__file__).parent / "fixtures" / "tiny_node_tool"
+MONOREPO_FIXTURE = Path(__file__).parent / "fixtures" / "tiny_monorepo"
+
+
+def test_node_fixture_detects_profile():
+    """tiny_node_tool should auto-detect as node_ts_tool."""
+    _, index = build(NODE_FIXTURE)
+    assert index["profile"] == "node_ts_tool"
+    validate_index(index)
+
+
+def test_node_fixture_roles():
+    """Node fixture should have meaningful role assignments."""
+    _, index = build(NODE_FIXTURE)
+    file_roles = {f["path"]: f["role"] for f in index["files"]}
+    assert file_roles["README.md"] == "doc"
+    assert file_roles["package.json"] == "config"
+    assert file_roles["tsconfig.json"] == "config"
+
+
+def test_node_fixture_start_here():
+    """Node fixture start_here should include README and config."""
+    _, index = build(NODE_FIXTURE)
+    assert "README.md" in index["start_here"]
+
+
+def test_node_fixture_has_plans():
+    """Node fixture should have all expected plans."""
+    _, index = build(NODE_FIXTURE)
+    assert "overview" in index["plans"]
+    assert "deep_dive" in index["plans"]
+
+
+def test_monorepo_fixture_detects_profile():
+    """tiny_monorepo should auto-detect as monorepo."""
+    _, index = build(MONOREPO_FIXTURE)
+    assert index["profile"] == "monorepo"
+    validate_index(index)
+
+
+def test_monorepo_fixture_roles():
+    """Monorepo fixture should have meaningful role assignments."""
+    _, index = build(MONOREPO_FIXTURE)
+    file_roles = {f["path"]: f["role"] for f in index["files"]}
+    assert file_roles["README.md"] == "doc"
+    assert file_roles["pnpm-workspace.yaml"] == "config"
+
+
+def test_monorepo_fixture_has_modules():
+    """Monorepo should produce module summaries for packages."""
+    _, index = build(MONOREPO_FIXTURE)
+    modules = index.get("modules", [])
+    module_paths = [m["path"] for m in modules]
+    # Should have at least the packages/* dirs
+    assert any("packages" in p for p in module_paths)
+
+
+def test_monorepo_fixture_has_plans():
+    """Monorepo fixture should have all expected plans."""
+    _, index = build(MONOREPO_FIXTURE)
+    assert "overview" in index["plans"]
+    assert "deep_dive" in index["plans"]
+
+
+def test_all_profiles_produce_valid_indices():
+    """Every profile fixture should produce schema-valid output."""
+    for fixture in [FIXTURE_DIR, NODE_FIXTURE, MONOREPO_FIXTURE]:
+        _, index = build(fixture)
+        validate_index(index)
+        assert len(index["files"]) > 0
+        assert len(index["start_here"]) > 0
+        assert len(index["plans"]) > 0

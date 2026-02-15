@@ -21,13 +21,24 @@ class ScannedFile:
 def _should_ignore(path: str, ignore_globs: list[str]) -> bool:
     """Check if a path matches any ignore glob."""
     posix = PurePosixPath(path)
+    path_str = str(posix)
     for glob in ignore_globs:
-        if fnmatch(str(posix), glob):
+        if fnmatch(path_str, glob):
             return True
-        # Also check each component for directory globs like "__pycache__/**"
-        for part in posix.parts:
-            if fnmatch(part, glob.split("/")[0]) and glob.endswith("/**"):
-                return True
+        # For directory globs like "__pycache__/**", check if any path
+        # component matches the directory name. Only applies to simple
+        # globs without ** prefix (those are handled by fnmatch above).
+        if glob.endswith("/**") and not glob.startswith("**/"):
+            dir_name = glob.split("/")[0]
+            for part in posix.parts:
+                if fnmatch(part, dir_name):
+                    return True
+        # For **/dir/** patterns, check if any component matches the dir name
+        if glob.startswith("**/") and glob.endswith("/**"):
+            dir_name = glob.split("/")[1]
+            for part in posix.parts[:-1]:  # skip the filename itself
+                if fnmatch(part, dir_name):
+                    return True
     return False
 
 
