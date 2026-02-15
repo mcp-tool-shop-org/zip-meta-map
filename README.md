@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="logo.png" alt="zip-meta-map logo" width="200">
+</p>
+
 # zip-meta-map
 
 zip-meta-map turns a ZIP (or folder) into a guided, LLM-friendly bundle by embedding a small metadata layer that answers:
