@@ -344,3 +344,126 @@ def test_cli_build_summary_with_manifest_only(capsys):
     assert code == 0
     captured = capsys.readouterr()
     assert "zip-meta-map:" in captured.out
+
+
+# ── Phase 6: Diff command ──
+
+
+def _write_index(path, **overrides):
+    """Write a minimal valid index JSON to path."""
+    index = {
+        "format": "zip-meta-map",
+        "version": "0.2",
+        "generated_by": "test/0.1.0",
+        "profile": "python_cli",
+        "start_here": ["README.md"],
+        "ignore": [".git/**"],
+        "files": [
+            {
+                "path": "README.md",
+                "size_bytes": 100,
+                "sha256": "a" * 64,
+                "role": "doc",
+                "confidence": 0.95,
+            },
+        ],
+        "plans": {
+            "overview": {
+                "description": "Quick overview",
+                "steps": ["READ README.md"],
+            },
+        },
+    }
+    index.update(overrides)
+    path.write_text(json.dumps(index))
+    return index
+
+
+def test_cli_diff_identical(tmp_path, capsys):
+    """diff of identical indices should report no changes."""
+    idx = tmp_path / "index.json"
+    _write_index(idx)
+    code = main(["diff", str(idx), str(idx)])
+    assert code == 0
+    captured = capsys.readouterr()
+    assert "No changes detected" in captured.out
+
+
+def test_cli_diff_with_changes(tmp_path, capsys):
+    """diff with file changes should show details."""
+    old = tmp_path / "old.json"
+    new = tmp_path / "new.json"
+    _write_index(old)
+    _write_index(
+        new,
+        files=[
+            {"path": "README.md", "size_bytes": 100, "sha256": "a" * 64, "role": "doc", "confidence": 0.95},
+            {"path": "new.py", "size_bytes": 50, "sha256": "b" * 64, "role": "source", "confidence": 0.8},
+        ],
+    )
+    code = main(["diff", str(old), str(new)])
+    assert code == 0
+    captured = capsys.readouterr()
+    assert "+1 added" in captured.out
+    assert "new.py" in captured.out
+
+
+def test_cli_diff_json_output(tmp_path, capsys):
+    """--json should produce valid JSON diff output."""
+    idx = tmp_path / "index.json"
+    _write_index(idx)
+    code = main(["diff", str(idx), str(idx), "--json"])
+    assert code == 0
+    captured = capsys.readouterr()
+    data = json.loads(captured.out)
+    assert data["has_changes"] is False
+
+
+def test_cli_diff_exit_code_no_changes(tmp_path):
+    """--exit-code should return 0 when no changes."""
+    idx = tmp_path / "index.json"
+    _write_index(idx)
+    code = main(["diff", str(idx), str(idx), "--exit-code"])
+    assert code == 0
+
+
+def test_cli_diff_exit_code_with_changes(tmp_path):
+    """--exit-code should return 1 when changes detected."""
+    old = tmp_path / "old.json"
+    new = tmp_path / "new.json"
+    _write_index(old)
+    _write_index(new, profile="monorepo")
+    code = main(["diff", str(old), str(new), "--exit-code"])
+    assert code == 1
+
+
+def test_cli_diff_missing_old(tmp_path, capsys):
+    """Missing old file should return error."""
+    new = tmp_path / "new.json"
+    _write_index(new)
+    code = main(["diff", str(tmp_path / "missing.json"), str(new)])
+    assert code == 1
+    captured = capsys.readouterr()
+    assert "does not exist" in captured.err
+
+
+def test_cli_diff_missing_new(tmp_path, capsys):
+    """Missing new file should return error."""
+    old = tmp_path / "old.json"
+    _write_index(old)
+    code = main(["diff", str(old), str(tmp_path / "missing.json")])
+    assert code == 1
+    captured = capsys.readouterr()
+    assert "does not exist" in captured.err
+
+
+def test_cli_diff_bad_json(tmp_path, capsys):
+    """Corrupt JSON should return error."""
+    old = tmp_path / "old.json"
+    _write_index(old)
+    bad = tmp_path / "bad.json"
+    bad.write_text("not json{{{")
+    code = main(["diff", str(old), str(bad)])
+    assert code == 1
+    captured = capsys.readouterr()
+    assert "could not read JSON" in captured.err

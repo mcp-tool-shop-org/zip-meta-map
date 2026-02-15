@@ -64,3 +64,8 @@ jobs:
           test -f /tmp/zmm-summary/META_ZIP_INDEX.json
           test -f /tmp/zmm-summary/META_ZIP_FRONT.md
           test -f /tmp/zmm-summary/META_ZIP_REPORT.md
+
+      - name: Diff smoke test
+        run: |
+          zip-meta-map diff /tmp/zmm-summary/META_ZIP_INDEX.json /tmp/zmm-summary/META_ZIP_INDEX.json --exit-code
+          zip-meta-map diff /tmp/zmm-summary/META_ZIP_INDEX.json /tmp/zmm-summary/META_ZIP_INDEX.json --json | python -c "import sys,json; d=json.load(sys.stdin); assert not d['has_changes']"

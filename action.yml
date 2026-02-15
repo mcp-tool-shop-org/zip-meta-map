@@ -38,6 +38,10 @@ inputs:
     description: 'Generate a detailed markdown report'
     required: false
     default: 'false'
+  pr-comment:
+    description: 'Post step summary as a PR comment (requires pull_request trigger and pull-requests: write permission)'
+    required: false
+    default: 'false'
 
 outputs:
   index-path:
@@ -120,3 +124,25 @@ runs:
         echo "profile=$PROFILE" >> "$GITHUB_OUTPUT"
         echo "file-count=$FILE_COUNT" >> "$GITHUB_OUTPUT"
         echo "warnings-count=$WARNINGS" >> "$GITHUB_OUTPUT"
+
+    - name: Post PR comment
+      if: ${{ inputs.pr-comment == 'true' && github.event_name == 'pull_request' }}
+      id: pr-comment
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        INDEX_PATH="${{ inputs.output-dir }}/META_ZIP_INDEX.json"
+        PROJECT_NAME=$(basename "${{ inputs.path }}")
+        [ -z "$PROJECT_NAME" ] && PROJECT_NAME="project"
+
+        COMMENT_BODY=$(python3 -c "
+        import json
+        from zip_meta_map.report import build_step_summary
+        index = json.load(open('${INDEX_PATH}'))
+        print(build_step_summary(index, '${PROJECT_NAME}'))
+        ")
+
+        MARKER='<!-- zip-meta-map-pr-comment -->'
+        gh pr comment "${{ github.event.pull_request.number }}" --body "${MARKER}
+        ${COMMENT_BODY}"

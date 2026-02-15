@@ -91,7 +91,7 @@ Use zip-meta-map in CI with the composite action:
     path: .
 ```
 
-This installs the tool, builds metadata, and writes a step summary. Outputs include `index-path`, `front-path`, `profile`, `file-count`, and `warnings-count`.
+This installs the tool, builds metadata, and writes a step summary. Outputs include `index-path`, `front-path`, `profile`, `file-count`, and `warnings-count`. Set `pr-comment: 'true'` to post the summary as a PR comment.
 
 See [examples/github-action/](examples/github-action/) for a full workflow.
 
@@ -121,6 +121,11 @@ zip-meta-map build . --manifest-only        # skip FRONT.md
 # Explain what the tool detected
 zip-meta-map explain path/to/repo
 zip-meta-map explain path/to/repo --json
+
+# Compare two indices (CI-friendly)
+zip-meta-map diff old.json new.json             # human-readable
+zip-meta-map diff old.json new.json --json       # JSON output
+zip-meta-map diff old.json new.json --exit-code  # exit 1 if changes
 
 # Validate an existing index
 zip-meta-map validate META_ZIP_INDEX.json
@@ -171,8 +176,9 @@ Every file entry includes a **role** (bounded vocabulary), **confidence** (0.0â€
 
 ```
 src/zip_meta_map/
-  cli.py        # argparse CLI (build, explain, validate)
+  cli.py        # argparse CLI (build, explain, diff, validate)
   builder.py    # scan -> index -> validate -> write
+  diff.py       # index comparison (diff command)
   report.py     # GitHub step summary + detailed report
   scanner.py    # directory + ZIP scanning with SHA-256
   roles.py      # role assignment heuristics + confidence

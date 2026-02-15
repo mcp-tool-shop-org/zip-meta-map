@@ -87,6 +87,22 @@ def main(argv: list[str] | None = None) -> int:
         help="Output explain results as JSON",
     )
 
+    # diff command
+    diff_parser = subparsers.add_parser("diff", help="Compare two META_ZIP_INDEX.json files")
+    diff_parser.add_argument("old", type=Path, help="Path to the old/base META_ZIP_INDEX.json")
+    diff_parser.add_argument("new", type=Path, help="Path to the new/current META_ZIP_INDEX.json")
+    diff_parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="Output diff as JSON",
+    )
+    diff_parser.add_argument(
+        "--exit-code",
+        action="store_true",
+        help="Exit with code 1 if changes detected (like diff --exit-code)",
+    )
+
     # validate command
     validate_parser = subparsers.add_parser("validate", help="Validate a META_ZIP_INDEX.json file against the schema")
     validate_parser.add_argument("input", type=Path, help="Path to a META_ZIP_INDEX.json file")
@@ -102,6 +118,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "explain":
         return _cmd_explain(args)
+
+    if args.command == "diff":
+        return _cmd_diff(args)
 
     if args.command == "validate":
         return _cmd_validate(args)
@@ -323,6 +342,36 @@ def _build_explain_data(index: dict) -> dict:
         "capabilities": index.get("capabilities", []),
         "low_confidence_count": sum(1 for f in files if f["confidence"] < 0.5),
     }
+
+
+def _cmd_diff(args: argparse.Namespace) -> int:
+    old_path: Path = args.old
+    new_path: Path = args.new
+
+    for path, label in [(old_path, "old"), (new_path, "new")]:
+        if not path.exists():
+            print(f"Error: {label} file {path} does not exist", file=sys.stderr)
+            return 1
+
+    try:
+        old_data = json.loads(old_path.read_text(encoding="utf-8"))
+        new_data = json.loads(new_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as e:
+        print(f"Error: could not read JSON: {e}", file=sys.stderr)
+        return 1
+
+    from zip_meta_map.diff import diff_indices, format_diff_human, format_diff_json
+
+    result = diff_indices(old_data, new_data)
+
+    if args.json_output:
+        print(format_diff_json(result))
+    else:
+        print(format_diff_human(result))
+
+    if args.exit_code:
+        return 1 if result.has_changes else 0
+    return 0
 
 
 def _cmd_validate(args: argparse.Namespace) -> int:

@@ -49,6 +49,32 @@ jobs:
           echo "Warnings: ${{ steps.zmm.outputs.warnings-count }}"
 ```
 
+## With PR comment
+
+```yaml
+# .github/workflows/metadata-pr.yml
+name: Metadata PR comment
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  metadata:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate metadata map
+        uses: mcp-tool-shop-org/zip-meta-map@v0
+        with:
+          path: .
+          pr-comment: 'true'
+```
+
 ## Outputs
 
 | Output | Description |
