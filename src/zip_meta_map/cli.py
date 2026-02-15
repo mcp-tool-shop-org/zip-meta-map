@@ -38,6 +38,23 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="Force a specific profile (default: auto-detect)",
     )
+    build_parser.add_argument(
+        "--policy",
+        type=Path,
+        default=None,
+        help="Path to a META_ZIP_POLICY.json file",
+    )
+
+    # explain command
+    explain_parser = subparsers.add_parser("explain", help="Show detected profile and top files to read")
+    explain_parser.add_argument("input", type=Path, help="Path to a directory or .zip file")
+    explain_parser.add_argument(
+        "-p",
+        "--profile",
+        choices=list(ALL_PROFILES.keys()),
+        default=None,
+        help="Force a specific profile (default: auto-detect)",
+    )
 
     args = parser.parse_args(argv)
 
@@ -46,26 +63,106 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "build":
-        input_path: Path = args.input
-        if not input_path.exists():
-            print(f"Error: {input_path} does not exist", file=sys.stderr)
-            return 1
+        return _cmd_build(args)
 
-        try:
-            front, index = build(input_path, output_dir=args.output, profile_name=args.profile)
-        except Exception as e:
-            print(f"Error: {e}", file=sys.stderr)
-            return 1
+    if args.command == "explain":
+        return _cmd_explain(args)
 
-        if args.output:
-            print(f"Wrote META_ZIP_FRONT.md and META_ZIP_INDEX.json to {args.output}/")
-        else:
-            print("--- META_ZIP_FRONT.md ---")
-            print(front)
-            print("--- META_ZIP_INDEX.json ---")
-            print(json.dumps(index, indent=2))
+    return 0
 
-        return 0
+
+def _cmd_build(args: argparse.Namespace) -> int:
+    input_path: Path = args.input
+    if not input_path.exists():
+        print(f"Error: {input_path} does not exist", file=sys.stderr)
+        return 1
+
+    policy_path: Path | None = args.policy
+    if policy_path and not policy_path.exists():
+        print(f"Error: policy file {policy_path} does not exist", file=sys.stderr)
+        return 1
+
+    try:
+        front, index = build(input_path, output_dir=args.output, profile_name=args.profile, policy_path=policy_path)
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+    if args.output:
+        print(f"Wrote META_ZIP_FRONT.md and META_ZIP_INDEX.json to {args.output}/")
+    else:
+        print("--- META_ZIP_FRONT.md ---")
+        print(front)
+        print("--- META_ZIP_INDEX.json ---")
+        print(json.dumps(index, indent=2))
+
+    return 0
+
+
+def _cmd_explain(args: argparse.Namespace) -> int:
+    input_path: Path = args.input
+    if not input_path.exists():
+        print(f"Error: {input_path} does not exist", file=sys.stderr)
+        return 1
+
+    try:
+        _, index = build(input_path, profile_name=args.profile)
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+    profile = index["profile"]
+    start_here = index["start_here"]
+    files = index["files"]
+    plans = index["plans"]
+
+    print(f"Profile:  {profile}")
+    print(f"Files:    {len(files)}")
+    print()
+
+    # Role distribution
+    role_counts: dict[str, int] = {}
+    for f in files:
+        role_counts[f["role"]] = role_counts.get(f["role"], 0) + 1
+    print("Roles:")
+    for role, count in sorted(role_counts.items(), key=lambda x: -x[1]):
+        print(f"  {role:20s} {count}")
+    print()
+
+    # Top 10 "read first" files
+    file_map = {f["path"]: f for f in files}
+    print("Top files to read first:")
+    shown = 0
+    for path in start_here:
+        if shown >= 10:
+            break
+        entry = file_map.get(path, {})
+        role = entry.get("role", "?")
+        conf = entry.get("confidence", 0)
+        reason = entry.get("reason", "")
+        print(f"  {path:40s}  [{role}]  conf={conf:.2f}  {reason}")
+        shown += 1
+    print()
+
+    # Overview plan
+    if "overview" in plans:
+        plan = plans["overview"]
+        print("Overview plan:")
+        print(f"  {plan['description']}")
+        for i, step in enumerate(plan["steps"], 1):
+            print(f"  {i}. {step}")
+        if plan.get("max_total_bytes"):
+            print(f"  Budget: ~{plan['max_total_bytes'] // 1024} KB")
+    print()
+
+    # Low-confidence warnings
+    low_conf = [(f["path"], f["confidence"], f.get("reason", "")) for f in files if f["confidence"] < 0.5]
+    if low_conf:
+        print(f"Low confidence ({len(low_conf)} files):")
+        for path, conf, reason in low_conf[:5]:
+            print(f"  {path:40s}  conf={conf:.2f}  {reason}")
+        if len(low_conf) > 5:
+            print(f"  ... and {len(low_conf) - 5} more")
 
     return 0
 

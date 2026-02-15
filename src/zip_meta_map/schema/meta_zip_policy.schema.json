@@ -30,6 +30,24 @@
       "items": { "type": "string" },
       "description": "Glob patterns for files containing secrets or PII"
     },
+    "ignore_extra": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Additional glob patterns to exclude from indexing (merged with profile ignores)"
+    },
+    "never_read": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Glob patterns for files agents should never read (stronger than ignore)"
+    },
+    "plan_budgets": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "description": "Override max_total_bytes per plan name (e.g. {\"overview\": 50000})"
+    },
     "notes": {
       "type": "string",
       "description": "Freeform guidance for agents"

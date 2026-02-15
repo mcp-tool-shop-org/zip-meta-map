@@ -1,4 +1,4 @@
-# zip-meta-map Specification — v0.1
+# zip-meta-map Specification — v0.1.1
 
 ## Overview
 
@@ -48,6 +48,7 @@ The primary machine-readable manifest. Validated against `meta_zip_index.schema.
 | `ignore` | string[] | yes | Glob patterns that were excluded from indexing |
 | `files` | FileEntry[] | yes | Complete inventory of indexed files |
 | `plans` | object | yes | Named traversal plans (see below) |
+| `policy_applied` | boolean | no | Whether a META_ZIP_POLICY.json was applied |
 
 ### FileEntry
 
@@ -57,23 +58,47 @@ The primary machine-readable manifest. Validated against `meta_zip_index.schema.
 | `size_bytes` | integer | yes | File size in bytes |
 | `sha256` | string | yes | SHA-256 hex digest of file contents |
 | `role` | string | yes | Role from the vocabulary below |
+| `confidence` | number | yes | Confidence in role assignment (0.0–1.0) |
+| `reason` | string | no | Human-readable explanation of why this role was assigned |
 | `tags` | string[] | no | Freeform tags for additional categorization |
 
-### Role Vocabulary (v0.1)
+### Role Vocabulary (v0.1.1)
 
-Roles are intentionally small. Profiles may restrict which roles they use, but the full vocabulary is:
+**Tags are unbounded; roles are bounded.** The role vocabulary is fixed per spec version. Profiles may restrict which roles they use, but they cannot invent new ones. Use `tags` for project-specific categorization.
+
+When confidence is low (< 0.5), the tool assigns `unknown` and includes a `reason` explaining what signals were ambiguous.
 
 | Role | Meaning |
 |------|---------|
-| `entrypoint` | Primary entry point (main script, index file) |
-| `config` | Configuration file (pyproject.toml, package.json, etc.) |
+| `entrypoint` | Primary entry point (main script, index file, CLI command) |
+| `public_api` | Exported API surface (public modules, `__init__.py` re-exports) |
 | `source` | Application/library source code |
+| `internal` | Internal/private modules (prefixed with `_`, nested deeply) |
+| `config` | Configuration file (pyproject.toml, package.json, tsconfig, etc.) |
+| `lockfile` | Dependency lock files (package-lock.json, poetry.lock, Cargo.lock) |
+| `ci` | CI/CD pipeline definitions (.github/workflows/, .circleci/) |
 | `test` | Test files |
-| `doc` | Documentation (markdown, rst, txt) |
-| `schema` | Schema definitions (JSON Schema, protobuf, etc.) |
-| `data` | Data files (fixtures, samples, static assets) |
-| `build` | Build scripts, Makefiles, CI configs |
-| `unknown` | Could not determine role |
+| `fixture` | Test fixtures and sample data used by tests |
+| `doc` | General documentation (README, guides, markdown) |
+| `doc_api` | API reference documentation (generated or handwritten) |
+| `doc_architecture` | Architecture/design docs (ADRs, ARCHITECTURE.md) |
+| `schema` | Schema definitions (JSON Schema, protobuf, GraphQL, OpenAPI) |
+| `build` | Build scripts and Makefiles |
+| `script` | Utility/dev scripts (not part of the main application) |
+| `generated` | Generated/compiled output (dist/, build artifacts) |
+| `vendor` | Vendored third-party code |
+| `asset` | Static assets (images, fonts, CSS, HTML templates) |
+| `data` | Data files (JSON data, CSV, databases) |
+| `unknown` | Could not determine role (confidence < 0.5) |
+
+### Confidence Bands
+
+| Band | Range | Meaning |
+|------|-------|---------|
+| High | 0.9–1.0 | Strong structural signal (filename match, profile entrypoint) |
+| Good | 0.7–0.89 | Pattern match (directory convention, extension + location) |
+| Fair | 0.5–0.69 | Extension-only or weak positional signal |
+| Low | 0.0–0.49 | Assigned `unknown`; reason explains the ambiguity |
 
 ### Plans
 
@@ -83,10 +108,11 @@ Plans are named traversal strategies that tell an agent how to navigate the arch
 |-------|------|----------|-------------|
 | `description` | string | yes | What this plan helps accomplish |
 | `steps` | string[] | yes | Ordered instructions (natural language) |
-| `budget_bytes` | integer | no | Suggested max bytes to read for this plan |
+| `budget_bytes` | integer | no | Suggested max bytes to read per step |
 | `stop_after` | string[] | no | Files/patterns — stop traversal after reading these |
+| `max_total_bytes` | integer | no | Hard cap on total bytes to read across all steps |
 
-Plans are advisory. Agents may deviate based on their own judgment.
+Plans are advisory. Agents may deviate based on their own judgment. However, `max_total_bytes` is a strong hint — exceeding it means the agent is likely reading more than necessary for the stated goal.
 
 **Standard plan names** (profiles should define at least `overview`):
 
@@ -108,6 +134,9 @@ Optional file that constrains agent behavior. Validated against `meta_zip_policy
 | `read_only` | string[] | no | Glob patterns for files agents should not modify |
 | `no_execute` | string[] | no | Glob patterns for files agents should not execute |
 | `sensitive` | string[] | no | Glob patterns for files containing secrets or PII |
+| `ignore_extra` | string[] | no | Additional glob patterns to exclude from indexing |
+| `never_read` | string[] | no | Files agents should never read (stronger than ignore) |
+| `plan_budgets` | object | no | Override `max_total_bytes` per plan name |
 | `notes` | string | no | Freeform guidance for agents |
 
 ## Trust Model

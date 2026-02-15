@@ -43,12 +43,16 @@
       "type": "object",
       "additionalProperties": { "$ref": "#/$defs/Plan" },
       "description": "Named traversal plans"
+    },
+    "policy_applied": {
+      "type": "boolean",
+      "description": "Whether a META_ZIP_POLICY.json was applied"
     }
   },
   "$defs": {
     "FileEntry": {
       "type": "object",
-      "required": ["path", "size_bytes", "sha256", "role"],
+      "required": ["path", "size_bytes", "sha256", "role", "confidence"],
       "additionalProperties": false,
       "properties": {
         "path": {
@@ -67,8 +71,28 @@
         },
         "role": {
           "type": "string",
-          "enum": ["entrypoint", "config", "source", "test", "doc", "schema", "data", "build", "unknown"],
-          "description": "File role from the spec vocabulary"
+          "enum": [
+            "entrypoint", "public_api", "source", "internal",
+            "config", "lockfile", "ci",
+            "test", "fixture",
+            "doc", "doc_api", "doc_architecture",
+            "schema",
+            "build", "script",
+            "generated", "vendor",
+            "asset", "data",
+            "unknown"
+          ],
+          "description": "File role from the spec vocabulary (v0.1.1)"
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "description": "Confidence in role assignment (0.0-1.0)"
+        },
+        "reason": {
+          "type": "string",
+          "description": "Why this role was assigned"
         },
         "tags": {
           "type": "array",
@@ -99,6 +123,11 @@
           "type": "array",
           "items": { "type": "string" },
           "description": "Stop traversal after reading these"
+        },
+        "max_total_bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Hard cap on total bytes to read across all steps"
         }
       }
     }

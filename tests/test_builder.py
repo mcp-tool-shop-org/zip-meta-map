@@ -6,11 +6,35 @@ from pathlib import Path
 
 import pytest
 
-from zip_meta_map.builder import build, build_index, detect_profile, validate_index
+from zip_meta_map.builder import build, build_index, detect_profile, load_policy, validate_index
 from zip_meta_map.profiles import PYTHON_CLI
 from zip_meta_map.scanner import scan_directory
 
 FIXTURE_DIR = Path(__file__).parent / "fixtures" / "tiny_python_cli"
+
+# All valid roles in v0.1.1
+VALID_ROLES = {
+    "entrypoint",
+    "public_api",
+    "source",
+    "internal",
+    "config",
+    "lockfile",
+    "ci",
+    "test",
+    "fixture",
+    "doc",
+    "doc_api",
+    "doc_architecture",
+    "schema",
+    "build",
+    "script",
+    "generated",
+    "vendor",
+    "asset",
+    "data",
+    "unknown",
+}
 
 
 def test_detect_profile_python():
@@ -22,7 +46,6 @@ def test_detect_profile_python():
 def test_build_index_valid_schema():
     files = scan_directory(FIXTURE_DIR, PYTHON_CLI.ignore_globs)
     index = build_index(files, PYTHON_CLI, "tiny_python_cli")
-    # Should not raise
     validate_index(index)
 
 
@@ -37,37 +60,65 @@ def test_build_index_required_fields():
     assert "overview" in index["plans"]
 
 
-def test_build_index_files_have_hashes():
+def test_build_index_files_have_confidence():
     files = scan_directory(FIXTURE_DIR, PYTHON_CLI.ignore_globs)
     index = build_index(files, PYTHON_CLI, "tiny_python_cli")
     for entry in index["files"]:
         assert len(entry["sha256"]) == 64
         assert entry["size_bytes"] >= 0
-        assert entry["role"] in [
-            "entrypoint",
-            "config",
-            "source",
-            "test",
-            "doc",
-            "schema",
-            "data",
-            "build",
-            "unknown",
-        ]
+        assert entry["role"] in VALID_ROLES
+        assert 0.0 <= entry["confidence"] <= 1.0
+        assert "reason" in entry
 
 
-def test_build_start_here():
+def test_build_start_here_ranked():
+    """start_here should be ordered: README first, then entrypoints, then config."""
     files = scan_directory(FIXTURE_DIR, PYTHON_CLI.ignore_globs)
     index = build_index(files, PYTHON_CLI, "tiny_python_cli")
-    assert "README.md" in index["start_here"]
-    assert "pyproject.toml" in index["start_here"]
+    start = index["start_here"]
+    assert len(start) >= 2
+    # README should be first or very near the top
+    assert "README.md" in start
+    readme_pos = start.index("README.md")
+    assert readme_pos <= 1, f"README.md should be near top, was at position {readme_pos}"
 
 
-def test_build_full_directory(tmp_path):
+def test_build_start_here_contains_entrypoint():
+    files = scan_directory(FIXTURE_DIR, PYTHON_CLI.ignore_globs)
+    index = build_index(files, PYTHON_CLI, "tiny_python_cli")
+    start = index["start_here"]
+    assert "src/tiny_cli/main.py" in start
+
+
+def test_build_plans_have_budgets():
+    """Plans should include budget information."""
+    files = scan_directory(FIXTURE_DIR, PYTHON_CLI.ignore_globs)
+    index = build_index(files, PYTHON_CLI, "tiny_python_cli")
+    overview = index["plans"]["overview"]
+    assert "budget_bytes" in overview
+    assert "max_total_bytes" in overview
+    assert overview["max_total_bytes"] > 0
+
+
+def test_build_plans_have_stop_after():
+    """Overview plan should have stop_after for quick orientation."""
+    files = scan_directory(FIXTURE_DIR, PYTHON_CLI.ignore_globs)
+    index = build_index(files, PYTHON_CLI, "tiny_python_cli")
+    overview = index["plans"]["overview"]
+    assert "stop_after" in overview
+    assert len(overview["stop_after"]) > 0
+
+
+def test_build_full_directory():
     front, index = build(FIXTURE_DIR)
     assert "tiny_python_cli" in front
     assert index["format"] == "zip-meta-map"
     validate_index(index)
+
+
+def test_build_front_has_roles_summary():
+    front, _ = build(FIXTURE_DIR)
+    assert "Roles" in front
 
 
 def test_build_writes_output(tmp_path):
@@ -80,7 +131,6 @@ def test_build_writes_output(tmp_path):
 
 
 def test_build_zip(tmp_path):
-    # Create a zip from the fixture
     zip_path = tmp_path / "fixture.zip"
     with zipfile.ZipFile(zip_path, "w") as zf:
         for fpath in sorted(FIXTURE_DIR.rglob("*")):
@@ -104,3 +154,74 @@ def test_build_forced_profile():
     front, index = build(FIXTURE_DIR, profile_name="node_ts_tool")
     assert index["profile"] == "node_ts_tool"
     validate_index(index)
+
+
+def test_build_with_policy(tmp_path):
+    policy = {
+        "format": "zip-meta-policy",
+        "version": "0.1",
+        "plan_budgets": {"overview": 10000},
+        "notes": "Test policy",
+    }
+    policy_path = tmp_path / "META_ZIP_POLICY.json"
+    policy_path.write_text(json.dumps(policy))
+
+    front, index = build(FIXTURE_DIR, policy_path=policy_path)
+    assert index["policy_applied"] is True
+    assert index["plans"]["overview"]["max_total_bytes"] == 10000
+    validate_index(index)
+
+
+def test_build_with_policy_ignore_extra(tmp_path):
+    policy = {
+        "format": "zip-meta-policy",
+        "version": "0.1",
+        "ignore_extra": ["tests/**"],
+    }
+    policy_path = tmp_path / "META_ZIP_POLICY.json"
+    policy_path.write_text(json.dumps(policy))
+
+    _, index = build(FIXTURE_DIR, policy_path=policy_path)
+    paths = {f["path"] for f in index["files"]}
+    assert "tests/test_main.py" not in paths
+
+
+def test_policy_invalid_schema(tmp_path):
+    bad_policy = {"format": "wrong", "version": "0.1"}
+    policy_path = tmp_path / "bad.json"
+    policy_path.write_text(json.dumps(bad_policy))
+
+    with pytest.raises(Exception):
+        load_policy(policy_path)
+
+
+# ── Golden tests: meaning, not just validity ──
+
+
+def test_golden_fixture_roles():
+    """The tiny_python_cli fixture should have meaningful role assignments."""
+    _, index = build(FIXTURE_DIR)
+    file_roles = {f["path"]: f["role"] for f in index["files"]}
+
+    assert file_roles["README.md"] == "doc"
+    assert file_roles["pyproject.toml"] == "config"
+    assert file_roles["src/tiny_cli/main.py"] == "entrypoint"
+    assert file_roles["tests/test_main.py"] == "test"
+
+
+def test_golden_fixture_confidence():
+    """High-signal files should have high confidence."""
+    _, index = build(FIXTURE_DIR)
+    file_conf = {f["path"]: f["confidence"] for f in index["files"]}
+
+    assert file_conf["README.md"] >= 0.90
+    assert file_conf["pyproject.toml"] >= 0.90
+    assert file_conf["src/tiny_cli/main.py"] >= 0.90
+    assert file_conf["tests/test_main.py"] >= 0.80
+
+
+def test_golden_fixture_start_here_order():
+    """start_here should prioritize README > entrypoint > config."""
+    _, index = build(FIXTURE_DIR)
+    start = index["start_here"]
+    assert start[0] == "README.md", f"First start_here should be README.md, got {start[0]}"
