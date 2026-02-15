@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mcp-tool-shop-org/zip-meta-map/meta_zip_index.schema.json",
+  "title": "META_ZIP_INDEX",
+  "description": "Machine-readable file inventory and traversal plans for a ZIP archive or project directory.",
+  "type": "object",
+  "required": ["format", "version", "generated_by", "profile", "start_here", "ignore", "files", "plans"],
+  "additionalProperties": false,
+  "properties": {
+    "format": {
+      "type": "string",
+      "const": "zip-meta-map"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+$",
+      "description": "Spec version (e.g. '0.1')"
+    },
+    "generated_by": {
+      "type": "string",
+      "description": "Tool name and version (e.g. 'zip-meta-map/0.1.0')"
+    },
+    "profile": {
+      "type": "string",
+      "description": "Profile used for categorization"
+    },
+    "start_here": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Ordered list of files to read first"
+    },
+    "ignore": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Glob patterns excluded from indexing"
+    },
+    "files": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/FileEntry" },
+      "description": "Complete inventory of indexed files"
+    },
+    "plans": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/Plan" },
+      "description": "Named traversal plans"
+    }
+  },
+  "$defs": {
+    "FileEntry": {
+      "type": "object",
+      "required": ["path", "size_bytes", "sha256", "role"],
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Relative path from archive/project root"
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "File size in bytes"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "SHA-256 hex digest"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["entrypoint", "config", "source", "test", "doc", "schema", "data", "build", "unknown"],
+          "description": "File role from the spec vocabulary"
+        },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Freeform tags"
+        }
+      }
+    },
+    "Plan": {
+      "type": "object",
+      "required": ["description", "steps"],
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "steps": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1
+        },
+        "budget_bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Suggested max bytes to read"
+        },
+        "stop_after": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Stop traversal after reading these"
+        }
+      }
+    }
+  }
+}

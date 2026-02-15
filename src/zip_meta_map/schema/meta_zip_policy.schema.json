@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mcp-tool-shop-org/zip-meta-map/meta_zip_policy.schema.json",
+  "title": "META_ZIP_POLICY",
+  "description": "Optional policy file constraining agent behavior within a ZIP archive or project.",
+  "type": "object",
+  "required": ["format", "version"],
+  "additionalProperties": false,
+  "properties": {
+    "format": {
+      "type": "string",
+      "const": "zip-meta-policy"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+$"
+    },
+    "read_only": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Glob patterns for files agents should not modify"
+    },
+    "no_execute": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Glob patterns for files agents should not execute"
+    },
+    "sensitive": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Glob patterns for files containing secrets or PII"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Freeform guidance for agents"
+    }
+  }
+}
