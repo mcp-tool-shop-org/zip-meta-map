@@ -53,7 +53,7 @@ def test_build_index_required_fields():
     files = scan_directory(FIXTURE_DIR, PYTHON_CLI.ignore_globs)
     index = build_index(files, PYTHON_CLI, "tiny_python_cli")
     assert index["format"] == "zip-meta-map"
-    assert index["version"] == "0.1"
+    assert index["version"] == "0.2"
     assert index["profile"] == "python_cli"
     assert isinstance(index["files"], list)
     assert isinstance(index["plans"], dict)
@@ -225,3 +225,46 @@ def test_golden_fixture_start_here_order():
     _, index = build(FIXTURE_DIR)
     start = index["start_here"]
     assert start[0] == "README.md", f"First start_here should be README.md, got {start[0]}"
+
+
+# ── Phase 2: Progressive disclosure tests ──
+
+
+def test_build_has_excerpts():
+    """start_here files should have excerpts when built with content."""
+    _, index = build(FIXTURE_DIR)
+    file_map = {f["path"]: f for f in index["files"]}
+    readme = file_map["README.md"]
+    assert "excerpt" in readme, "README.md should have an excerpt"
+    assert len(readme["excerpt"]) > 0
+
+
+def test_build_has_modules():
+    """Build should produce module summaries for directories with 2+ files."""
+    _, index = build(FIXTURE_DIR)
+    modules = index.get("modules", [])
+    # tiny_python_cli has src/tiny_cli/ with at least 2 files
+    assert len(modules) >= 1
+    paths = [m["path"] for m in modules]
+    assert any("src" in p for p in paths) or any("." == p for p in paths)
+
+
+def test_build_has_deep_dive_plan():
+    """Python CLI profile should include the deep_dive plan."""
+    _, index = build(FIXTURE_DIR)
+    assert "deep_dive" in index["plans"]
+    deep = index["plans"]["deep_dive"]
+    assert "SUMMARIZE_THEN_CHOOSE_NEXT" in " ".join(deep["steps"])
+
+
+def test_build_front_has_modules_section():
+    """FRONT.md should include modules section when modules exist."""
+    front, index = build(FIXTURE_DIR)
+    if index.get("modules"):
+        assert "Modules" in front
+
+
+def test_build_version_is_0_2():
+    """Phase 2 should produce version 0.2."""
+    _, index = build(FIXTURE_DIR)
+    assert index["version"] == "0.2"

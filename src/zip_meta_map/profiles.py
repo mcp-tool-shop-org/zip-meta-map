@@ -105,6 +105,17 @@ PYTHON_CLI = Profile(
             budget_bytes=16384,
             max_total_bytes=65536,
         ),
+        "deep_dive": Plan(
+            description="Read all source modules to understand full implementation",
+            steps=[
+                "READ start_here files for orientation",
+                "READ each source module in dependency order (imports first)",
+                "READ tests to understand expected behavior",
+                "SUMMARIZE_THEN_CHOOSE_NEXT: after each chunk, decide if more detail is needed",
+            ],
+            budget_bytes=32768,
+            max_total_bytes=131072,
+        ),
     },
 )
 
@@ -175,6 +186,17 @@ NODE_TS_TOOL = Profile(
             budget_bytes=16384,
             max_total_bytes=65536,
         ),
+        "deep_dive": Plan(
+            description="Read all source modules to understand full implementation",
+            steps=[
+                "READ start_here files for orientation",
+                "READ each source module in dependency order (imports first)",
+                "READ tests to understand expected behavior",
+                "SUMMARIZE_THEN_CHOOSE_NEXT: after each chunk, decide if more detail is needed",
+            ],
+            budget_bytes=32768,
+            max_total_bytes=131072,
+        ),
     },
 )
 
@@ -238,6 +260,17 @@ MONOREPO = Profile(
             ],
             budget_bytes=16384,
             max_total_bytes=131072,
+        ),
+        "deep_dive": Plan(
+            description="Read all packages to understand full monorepo implementation",
+            steps=[
+                "READ start_here files and workspace config for orientation",
+                "LIST all packages and their entrypoints",
+                "READ each package's primary source in dependency order",
+                "SUMMARIZE_THEN_CHOOSE_NEXT: after each package, decide which to explore deeper",
+            ],
+            budget_bytes=32768,
+            max_total_bytes=262144,
         ),
     },
 )

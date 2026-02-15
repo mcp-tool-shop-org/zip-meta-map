@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 from zip_meta_map import __version__
-from zip_meta_map.builder import build
+from zip_meta_map.builder import build, validate_index
 from zip_meta_map.profiles import ALL_PROFILES
 
 
@@ -55,6 +55,16 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="Force a specific profile (default: auto-detect)",
     )
+    explain_parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="Output explain results as JSON",
+    )
+
+    # validate command
+    validate_parser = subparsers.add_parser("validate", help="Validate a META_ZIP_INDEX.json file against the schema")
+    validate_parser.add_argument("input", type=Path, help="Path to a META_ZIP_INDEX.json file")
 
     args = parser.parse_args(argv)
 
@@ -67,6 +77,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "explain":
         return _cmd_explain(args)
+
+    if args.command == "validate":
+        return _cmd_validate(args)
 
     return 0
 
@@ -89,7 +102,25 @@ def _cmd_build(args: argparse.Namespace) -> int:
         return 1
 
     if args.output:
+        # Print build summary
+        file_count = len(index["files"])
+        profile = index["profile"]
+        modules = index.get("modules", [])
+        warnings = index.get("warnings", [])
+        chunked = sum(1 for f in index["files"] if f.get("chunks"))
+        flagged = sum(1 for f in index["files"] if f.get("risk_flags"))
+
         print(f"Wrote META_ZIP_FRONT.md and META_ZIP_INDEX.json to {args.output}/")
+        print(f"  Profile:  {profile}")
+        print(f"  Files:    {file_count}")
+        if modules:
+            print(f"  Modules:  {len(modules)}")
+        if chunked:
+            print(f"  Chunked:  {chunked} file(s)")
+        if flagged:
+            print(f"  Flagged:  {flagged} file(s) with risk flags")
+        if warnings:
+            print(f"  Warnings: {len(warnings)}")
     else:
         print("--- META_ZIP_FRONT.md ---")
         print(front)
@@ -110,6 +141,11 @@ def _cmd_explain(args: argparse.Namespace) -> int:
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1
+
+    if args.json_output:
+        explain_data = _build_explain_data(index)
+        print(json.dumps(explain_data, indent=2))
+        return 0
 
     profile = index["profile"]
     start_here = index["start_here"]
@@ -144,6 +180,15 @@ def _cmd_explain(args: argparse.Namespace) -> int:
         shown += 1
     print()
 
+    # Modules
+    modules = index.get("modules", [])
+    if modules:
+        print(f"Modules ({len(modules)}):")
+        for mod in modules[:10]:
+            summary = mod.get("summary", "")
+            print(f"  {mod['path']:40s}  {mod['file_count']} files  {summary}")
+        print()
+
     # Overview plan
     if "overview" in plans:
         plan = plans["overview"]
@@ -155,6 +200,14 @@ def _cmd_explain(args: argparse.Namespace) -> int:
             print(f"  Budget: ~{plan['max_total_bytes'] // 1024} KB")
     print()
 
+    # Safety warnings
+    warnings = index.get("warnings", [])
+    if warnings:
+        print(f"Warnings ({len(warnings)}):")
+        for w in warnings:
+            print(f"  - {w}")
+        print()
+
     # Low-confidence warnings
     low_conf = [(f["path"], f["confidence"], f.get("reason", "")) for f in files if f["confidence"] < 0.5]
     if low_conf:
@@ -164,6 +217,49 @@ def _cmd_explain(args: argparse.Namespace) -> int:
         if len(low_conf) > 5:
             print(f"  ... and {len(low_conf) - 5} more")
 
+    return 0
+
+
+def _build_explain_data(index: dict) -> dict:
+    """Build a structured explain object for --json output."""
+    files = index["files"]
+
+    role_counts: dict[str, int] = {}
+    for f in files:
+        role_counts[f["role"]] = role_counts.get(f["role"], 0) + 1
+
+    return {
+        "profile": index["profile"],
+        "file_count": len(files),
+        "roles": role_counts,
+        "start_here": index["start_here"],
+        "modules": index.get("modules", []),
+        "plans": index["plans"],
+        "warnings": index.get("warnings", []),
+        "low_confidence_count": sum(1 for f in files if f["confidence"] < 0.5),
+    }
+
+
+def _cmd_validate(args: argparse.Namespace) -> int:
+    input_path: Path = args.input
+    if not input_path.exists():
+        print(f"Error: {input_path} does not exist", file=sys.stderr)
+        return 1
+
+    try:
+        data = json.loads(input_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as e:
+        print(f"Error: could not read JSON: {e}", file=sys.stderr)
+        return 1
+
+    try:
+        validate_index(data)
+    except Exception as e:
+        print(f"Validation failed: {e}", file=sys.stderr)
+        return 1
+
+    file_count = len(data.get("files", []))
+    print(f"Valid META_ZIP_INDEX.json ({file_count} files, version {data.get('version', '?')})")
     return 0
 
 

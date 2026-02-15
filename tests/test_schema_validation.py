@@ -20,7 +20,7 @@ def test_policy_schema_loads():
 def test_index_rejects_missing_format():
     schema = load_index_schema()
     bad = {
-        "version": "0.1",
+        "version": "0.2",
         "generated_by": "test",
         "profile": "test",
         "start_here": [],
@@ -36,7 +36,7 @@ def test_index_rejects_bad_role():
     schema = load_index_schema()
     bad = {
         "format": "zip-meta-map",
-        "version": "0.1",
+        "version": "0.2",
         "generated_by": "test",
         "profile": "test",
         "start_here": [],
@@ -52,7 +52,7 @@ def test_index_rejects_bad_sha256():
     schema = load_index_schema()
     bad = {
         "format": "zip-meta-map",
-        "version": "0.1",
+        "version": "0.2",
         "generated_by": "test",
         "profile": "test",
         "start_here": [],
@@ -68,7 +68,7 @@ def test_index_rejects_missing_confidence():
     schema = load_index_schema()
     bad = {
         "format": "zip-meta-map",
-        "version": "0.1",
+        "version": "0.2",
         "generated_by": "test",
         "profile": "test",
         "start_here": [],
@@ -84,7 +84,7 @@ def test_index_rejects_confidence_out_of_range():
     schema = load_index_schema()
     bad = {
         "format": "zip-meta-map",
-        "version": "0.1",
+        "version": "0.2",
         "generated_by": "test",
         "profile": "test",
         "start_here": [],
@@ -100,7 +100,7 @@ def test_index_accepts_valid_minimal():
     schema = load_index_schema()
     good = {
         "format": "zip-meta-map",
-        "version": "0.1",
+        "version": "0.2",
         "generated_by": "test/0.0.1",
         "profile": "python_cli",
         "start_here": [],
@@ -115,7 +115,7 @@ def test_index_accepts_full_file_entry():
     schema = load_index_schema()
     good = {
         "format": "zip-meta-map",
-        "version": "0.1",
+        "version": "0.2",
         "generated_by": "test/0.0.1",
         "profile": "python_cli",
         "start_here": ["src/main.py"],
@@ -129,6 +129,11 @@ def test_index_accepts_full_file_entry():
                 "confidence": 0.95,
                 "reason": "matches profile entrypoint pattern",
                 "tags": ["cli"],
+                "excerpt": "#!/usr/bin/env python3\nimport click",
+                "risk_flags": ["exec_shell"],
+                "chunks": [
+                    {"id": "chunk_1_abc", "start_line": 1, "end_line": 50, "byte_len": 2000, "heading": "# Main"},
+                ],
             }
         ],
         "plans": {
@@ -172,7 +177,7 @@ def test_index_accepts_new_roles():
     for role in new_roles:
         doc = {
             "format": "zip-meta-map",
-            "version": "0.1",
+            "version": "0.2",
             "generated_by": "test",
             "profile": "test",
             "start_here": [],
@@ -187,7 +192,7 @@ def test_index_accepts_policy_applied():
     schema = load_index_schema()
     good = {
         "format": "zip-meta-map",
-        "version": "0.1",
+        "version": "0.2",
         "generated_by": "test",
         "profile": "test",
         "start_here": [],
@@ -197,6 +202,73 @@ def test_index_accepts_policy_applied():
         "policy_applied": True,
     }
     jsonschema.validate(good, schema)
+
+
+def test_index_accepts_modules():
+    schema = load_index_schema()
+    good = {
+        "format": "zip-meta-map",
+        "version": "0.2",
+        "generated_by": "test",
+        "profile": "test",
+        "start_here": [],
+        "ignore": [],
+        "files": [],
+        "plans": {},
+        "modules": [
+            {
+                "path": "src/app",
+                "file_count": 5,
+                "total_bytes": 10000,
+                "primary_roles": ["source", "entrypoint"],
+                "key_files": ["src/app/main.py"],
+                "summary": "Contains source code, entry point",
+            }
+        ],
+    }
+    jsonschema.validate(good, schema)
+
+
+def test_index_accepts_warnings():
+    schema = load_index_schema()
+    good = {
+        "format": "zip-meta-map",
+        "version": "0.2",
+        "generated_by": "test",
+        "profile": "test",
+        "start_here": [],
+        "ignore": [],
+        "files": [],
+        "plans": {},
+        "warnings": ["3 file(s) contain patterns that look like secrets"],
+    }
+    jsonschema.validate(good, schema)
+
+
+def test_index_rejects_bad_chunk():
+    """Chunk missing required field should fail."""
+    schema = load_index_schema()
+    bad = {
+        "format": "zip-meta-map",
+        "version": "0.2",
+        "generated_by": "test",
+        "profile": "test",
+        "start_here": [],
+        "ignore": [],
+        "files": [
+            {
+                "path": "big.py",
+                "size_bytes": 50000,
+                "sha256": "a" * 64,
+                "role": "source",
+                "confidence": 0.6,
+                "chunks": [{"id": "chunk_1_abc", "start_line": 1}],  # missing end_line, byte_len
+            }
+        ],
+        "plans": {},
+    }
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(bad, schema)
 
 
 def test_policy_accepts_valid():

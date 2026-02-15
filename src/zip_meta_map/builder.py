@@ -1,4 +1,4 @@
-"""Core builder \u2014 generates META_ZIP_FRONT.md and META_ZIP_INDEX.json."""
+"""Core builder — generates META_ZIP_FRONT.md and META_ZIP_INDEX.json."""
 
 from __future__ import annotations
 
@@ -9,10 +9,17 @@ from pathlib import Path
 import jsonschema
 
 from zip_meta_map import __version__
+from zip_meta_map.chunker import chunk_text, is_chunkable
+from zip_meta_map.modules import build_modules
 from zip_meta_map.profiles import ALL_PROFILES, DEFAULT_PROFILE, Profile
 from zip_meta_map.roles import RoleAssignment, assign_role
+from zip_meta_map.safety import detect_risk_flags, detect_warnings
 from zip_meta_map.scanner import ScannedFile, scan_directory, scan_zip
 from zip_meta_map.schema import load_index_schema, load_policy_schema
+
+# Max lines to use for an excerpt
+_EXCERPT_MAX_LINES = 8
+_EXCERPT_MAX_BYTES = 1024
 
 # Roles considered high-value for start_here ranking (order = priority)
 _START_HERE_ROLE_PRIORITY: dict[str, int] = {
@@ -147,6 +154,38 @@ def _apply_policy_to_plans(plans: dict, policy: dict) -> dict:
     return updated
 
 
+def _extract_excerpt(content: bytes | None, path: str) -> str | None:
+    """Extract a safe excerpt from file content.
+
+    Returns the first N lines of text, truncated to _EXCERPT_MAX_BYTES.
+    Only works on text files that can be decoded as UTF-8.
+    """
+    if content is None:
+        return None
+
+    try:
+        text = content.decode("utf-8", errors="strict")
+    except UnicodeDecodeError:
+        return None
+
+    lines = text.splitlines()
+    if not lines:
+        return None
+
+    excerpt_lines = lines[:_EXCERPT_MAX_LINES]
+    excerpt = "\n".join(excerpt_lines)
+
+    # Truncate if too long
+    if len(excerpt.encode("utf-8")) > _EXCERPT_MAX_BYTES:
+        excerpt = excerpt[:_EXCERPT_MAX_BYTES]
+        # Don't cut in the middle of a line
+        last_nl = excerpt.rfind("\n")
+        if last_nl > 0:
+            excerpt = excerpt[:last_nl]
+
+    return excerpt if excerpt.strip() else None
+
+
 def build_index(
     files: list[ScannedFile],
     profile: Profile,
@@ -158,6 +197,10 @@ def build_index(
     assignments: dict[str, RoleAssignment] = {}
     for f in files:
         assignments[f.path] = assign_role(f.path, profile)
+
+    # Determine start_here for excerpt generation
+    start_here = _find_start_here(files, assignments, profile)
+    start_here_set = set(start_here)
 
     file_entries = []
     for f in files:
@@ -171,6 +214,28 @@ def build_index(
         }
         if a.reason:
             entry["reason"] = a.reason
+
+        # Chunk large text files
+        if is_chunkable(f.path, f.size_bytes) and f.content is not None:
+            try:
+                text = f.content.decode("utf-8", errors="strict")
+                chunks = chunk_text(text)
+                if chunks:
+                    entry["chunks"] = [c.to_dict() for c in chunks]
+            except UnicodeDecodeError:
+                pass
+
+        # Excerpt for start_here files and high-value files
+        if f.path in start_here_set or a.role in ("entrypoint", "doc", "doc_architecture"):
+            excerpt = _extract_excerpt(f.content, f.path)
+            if excerpt:
+                entry["excerpt"] = excerpt
+
+        # Risk flags
+        risk_flags = detect_risk_flags(f.path, f.content, f.size_bytes)
+        if risk_flags:
+            entry["risk_flags"] = risk_flags
+
         file_entries.append(entry)
 
     plans = {name: plan.to_dict() for name, plan in profile.plans.items()}
@@ -179,16 +244,28 @@ def build_index(
     if policy:
         plans = _apply_policy_to_plans(plans, policy)
 
+    # Build module summaries
+    modules = build_modules(file_entries)
+
+    # Generate safety warnings
+    warnings = detect_warnings(file_entries, profile.ignore_globs)
+
     index: dict = {
         "format": "zip-meta-map",
-        "version": "0.1",
+        "version": "0.2",
         "generated_by": f"zip-meta-map/{__version__}",
         "profile": profile.name,
-        "start_here": _find_start_here(files, assignments, profile),
+        "start_here": start_here,
         "ignore": profile.ignore_globs,
         "files": file_entries,
         "plans": plans,
     }
+
+    if modules:
+        index["modules"] = modules
+
+    if warnings:
+        index["warnings"] = warnings
 
     if policy is not None:
         index["policy_applied"] = True
@@ -226,6 +303,9 @@ def build_front(index: dict, project_name: str) -> str:
         role_counts[f["role"]] = role_counts.get(f["role"], 0) + 1
     role_summary = ", ".join(f"{count} {role}" for role, count in sorted(role_counts.items(), key=lambda x: -x[1]))
 
+    # Module summary
+    modules_section = _build_modules_section(index)
+
     # Guardrails
     guardrails = _build_guardrails(index)
 
@@ -248,10 +328,34 @@ def build_front(index: dict, project_name: str) -> str:
 
 {_format_plans(index["plans"])}
 
-{guardrails}---
+{modules_section}{guardrails}---
 
 *This file is for humans. Agents should prefer `META_ZIP_INDEX.json`.*
 """
+
+
+def _build_modules_section(index: dict) -> str:
+    """Generate the modules section for FRONT.md."""
+    modules = index.get("modules", [])
+    if not modules:
+        return ""
+
+    lines = ["## Modules\n"]
+    for mod in modules:
+        path = mod["path"]
+        file_count = mod["file_count"]
+        primary = ", ".join(mod.get("primary_roles", []))
+        summary = mod.get("summary", "")
+        line = f"- `{path}/` ({file_count} files"
+        if primary:
+            line += f", {primary}"
+        line += ")"
+        if summary:
+            line += f" \u2014 {summary}"
+        lines.append(line)
+
+    lines.append("\n")
+    return "\n".join(lines)
 
 
 def _build_guardrails(index: dict) -> str:
@@ -275,6 +379,15 @@ def _build_guardrails(index: dict) -> str:
         lines.append(
             f"\n{len(low_conf)} file(s) have low classification confidence (< 0.5) \u2014 verify roles manually."
         )
+
+    # Include safety warnings
+    warnings = index.get("warnings", [])
+    if warnings:
+        if not lines:
+            lines.append("## Guardrails\n")
+        lines.append("\n**Safety warnings:**\n")
+        for w in warnings:
+            lines.append(f"- {w}")
 
     if lines:
         lines.append("\n")
@@ -328,7 +441,7 @@ def build(
         ignore_globs = profile.ignore_globs
         if policy:
             ignore_globs = _apply_policy_to_ignores(ignore_globs, policy)
-        files = scan_directory(input_path, ignore_globs)
+        files = scan_directory(input_path, ignore_globs, retain_content=True)
     elif input_path.suffix == ".zip":
         project_name = input_path.stem
         if profile_name:
@@ -339,7 +452,7 @@ def build(
         ignore_globs = profile.ignore_globs
         if policy:
             ignore_globs = _apply_policy_to_ignores(ignore_globs, policy)
-        files = scan_zip(input_path, ignore_globs)
+        files = scan_zip(input_path, ignore_globs, retain_content=True)
     else:
         raise ValueError(f"Input must be a directory or .zip file, got: {input_path}")
 
