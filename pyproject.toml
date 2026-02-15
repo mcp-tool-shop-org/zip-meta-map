@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "zip-meta-map"
-version = "0.1.0a0"
+version = "0.2.0a0"
 description = "Generate machine-readable metadata manifests for ZIP archives and project directories"
 readme = "README.md"
 license = "MIT"
@@ -12,17 +12,27 @@ requires-python = ">=3.11"
 authors = [
     { name = "mcp-tool-shop", email = "64996768+mcp-tool-shop@users.noreply.github.com" },
 ]
-keywords = ["zip", "metadata", "manifest", "ai", "navigation"]
+keywords = ["zip", "metadata", "manifest", "ai", "navigation", "llm", "agent"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Software Development :: Documentation",
+    "Typing :: Typed",
 ]
 dependencies = [
     "jsonschema>=4.20",
 ]
+
+[project.urls]
+Homepage = "https://github.com/mcp-tool-shop-org/zip-meta-map"
+Repository = "https://github.com/mcp-tool-shop-org/zip-meta-map"
+Issues = "https://github.com/mcp-tool-shop-org/zip-meta-map/issues"
+Documentation = "https://github.com/mcp-tool-shop-org/zip-meta-map/blob/main/docs/SPEC.md"
 
 [project.scripts]
 zip-meta-map = "zip_meta_map.cli:main"

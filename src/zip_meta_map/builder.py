@@ -270,6 +270,21 @@ def build_index(
     if policy is not None:
         index["policy_applied"] = True
 
+    # Capabilities: advertise which optional features are populated
+    caps: list[str] = []
+    if any(f.get("chunks") for f in file_entries):
+        caps.append("chunks")
+    if any(f.get("excerpt") for f in file_entries):
+        caps.append("excerpts")
+    if modules:
+        caps.append("modules")
+    if any(f.get("risk_flags") for f in file_entries):
+        caps.append("risk_flags")
+    if warnings:
+        caps.append("warnings")
+    if caps:
+        index["capabilities"] = caps
+
     return index
 
 

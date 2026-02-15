@@ -268,3 +268,22 @@ def test_build_version_is_0_2():
     """Phase 2 should produce version 0.2."""
     _, index = build(FIXTURE_DIR)
     assert index["version"] == "0.2"
+
+
+# ── Phase 3: Capabilities contract ──
+
+
+def test_build_has_capabilities():
+    """Build should populate capabilities based on features present."""
+    _, index = build(FIXTURE_DIR)
+    caps = index.get("capabilities", [])
+    assert isinstance(caps, list)
+    # Fixture has excerpts (README is in start_here) and modules
+    assert "excerpts" in caps
+    assert "modules" in caps
+
+
+def test_build_capabilities_validated():
+    """Capabilities should pass schema validation."""
+    _, index = build(FIXTURE_DIR)
+    validate_index(index)

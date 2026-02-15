@@ -155,3 +155,95 @@ def test_cli_validate_bad_json(tmp_path, capsys):
 def test_cli_no_command(capsys):
     code = main([])
     assert code == 0
+
+
+# ── Phase 3: Consumer integration hooks ──
+
+
+def test_cli_build_format_json(capsys):
+    """--format json should produce valid JSON with front_md and index."""
+    code = main(["build", str(FIXTURE_DIR), "--format", "json"])
+    assert code == 0
+    captured = capsys.readouterr()
+    data = json.loads(captured.out)
+    assert "front_md" in data
+    assert "index" in data
+    assert data["index"]["format"] == "zip-meta-map"
+
+
+def test_cli_build_format_ndjson(capsys):
+    """--format ndjson should produce one JSON line per file."""
+    code = main(["build", str(FIXTURE_DIR), "--format", "ndjson"])
+    assert code == 0
+    captured = capsys.readouterr()
+    lines = [line for line in captured.out.strip().split("\n") if line.strip()]
+    assert len(lines) >= 1
+    for line in lines:
+        entry = json.loads(line)
+        assert "path" in entry
+        assert "role" in entry
+        assert "confidence" in entry
+
+
+def test_cli_build_manifest_only_stdout(capsys):
+    """--manifest-only should suppress FRONT.md in stdout output."""
+    code = main(["build", str(FIXTURE_DIR), "--manifest-only"])
+    assert code == 0
+    captured = capsys.readouterr()
+    assert "META_ZIP_FRONT.md" not in captured.out
+    assert "META_ZIP_INDEX.json" in captured.out
+
+
+def test_cli_build_manifest_only_output_dir(tmp_path, capsys):
+    """--manifest-only -o should only write META_ZIP_INDEX.json."""
+    out = tmp_path / "output"
+    code = main(["build", str(FIXTURE_DIR), "-o", str(out), "--manifest-only"])
+    assert code == 0
+    assert (out / "META_ZIP_INDEX.json").exists()
+    assert not (out / "META_ZIP_FRONT.md").exists()
+
+    index = json.loads((out / "META_ZIP_INDEX.json").read_text())
+    assert index["format"] == "zip-meta-map"
+
+
+def test_cli_build_manifest_only_json(capsys):
+    """--manifest-only --format json should emit only the index dict."""
+    code = main(["build", str(FIXTURE_DIR), "--manifest-only", "--format", "json"])
+    assert code == 0
+    captured = capsys.readouterr()
+    data = json.loads(captured.out)
+    # Should be the index directly, not wrapped in {front_md, index}
+    assert data["format"] == "zip-meta-map"
+    assert "front_md" not in data
+
+
+def test_cli_validate_shows_capabilities(tmp_path, capsys):
+    """validate should display capabilities when present."""
+    index = {
+        "format": "zip-meta-map",
+        "version": "0.2",
+        "generated_by": "test/0.1.0",
+        "profile": "python_cli",
+        "start_here": [],
+        "ignore": [],
+        "files": [],
+        "plans": {},
+        "capabilities": ["chunks", "excerpts"],
+    }
+    index_path = tmp_path / "META_ZIP_INDEX.json"
+    index_path.write_text(json.dumps(index))
+
+    code = main(["validate", str(index_path)])
+    assert code == 0
+    captured = capsys.readouterr()
+    assert "chunks" in captured.out
+    assert "excerpts" in captured.out
+
+
+def test_cli_explain_json_includes_capabilities(capsys):
+    """explain --json should include capabilities in output."""
+    code = main(["explain", str(FIXTURE_DIR), "--json"])
+    assert code == 0
+    captured = capsys.readouterr()
+    data = json.loads(captured.out)
+    assert "capabilities" in data

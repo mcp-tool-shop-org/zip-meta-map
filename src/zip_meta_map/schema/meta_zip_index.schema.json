@@ -57,6 +57,11 @@
     "policy_applied": {
       "type": "boolean",
       "description": "Whether a META_ZIP_POLICY.json was applied"
+    },
+    "capabilities": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Feature flags indicating what optional fields are populated (e.g. chunks, excerpts, modules, risk_flags)"
     }
   },
   "$defs": {

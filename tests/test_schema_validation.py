@@ -283,6 +283,40 @@ def test_policy_accepts_valid():
     jsonschema.validate(good, schema)
 
 
+def test_index_accepts_capabilities():
+    schema = load_index_schema()
+    good = {
+        "format": "zip-meta-map",
+        "version": "0.2",
+        "generated_by": "test",
+        "profile": "test",
+        "start_here": [],
+        "ignore": [],
+        "files": [],
+        "plans": {},
+        "capabilities": ["chunks", "excerpts", "modules", "risk_flags", "warnings"],
+    }
+    jsonschema.validate(good, schema)
+
+
+def test_index_rejects_extra_properties():
+    """additionalProperties: false should reject unknown top-level keys."""
+    schema = load_index_schema()
+    bad = {
+        "format": "zip-meta-map",
+        "version": "0.2",
+        "generated_by": "test",
+        "profile": "test",
+        "start_here": [],
+        "ignore": [],
+        "files": [],
+        "plans": {},
+        "unknown_key": True,
+    }
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(bad, schema)
+
+
 def test_policy_accepts_new_fields():
     schema = load_policy_schema()
     good = {

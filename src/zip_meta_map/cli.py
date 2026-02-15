@@ -44,6 +44,18 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="Path to a META_ZIP_POLICY.json file",
     )
+    build_parser.add_argument(
+        "--format",
+        choices=["pretty", "json", "ndjson"],
+        default="pretty",
+        dest="output_format",
+        help="Output format when printing to stdout (default: pretty)",
+    )
+    build_parser.add_argument(
+        "--manifest-only",
+        action="store_true",
+        help="Emit only META_ZIP_INDEX.json (no FRONT.md), useful for pipelines",
+    )
 
     # explain command
     explain_parser = subparsers.add_parser("explain", help="Show detected profile and top files to read")
@@ -95,13 +107,27 @@ def _cmd_build(args: argparse.Namespace) -> int:
         print(f"Error: policy file {policy_path} does not exist", file=sys.stderr)
         return 1
 
+    # For --manifest-only with -o, still write the directory but skip FRONT.md
+    output_dir = args.output
+    manifest_only = args.manifest_only
+
     try:
-        front, index = build(input_path, output_dir=args.output, profile_name=args.profile, policy_path=policy_path)
+        front, index = build(
+            input_path,
+            output_dir=None if manifest_only and output_dir else output_dir,
+            profile_name=args.profile,
+            policy_path=policy_path,
+        )
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1
 
-    if args.output:
+    # Handle --manifest-only with -o: write only the JSON
+    if manifest_only and output_dir:
+        output_dir.mkdir(parents=True, exist_ok=True)
+        (output_dir / "META_ZIP_INDEX.json").write_text(json.dumps(index, indent=2) + "\n", encoding="utf-8")
+
+    if output_dir:
         # Print build summary
         file_count = len(index["files"])
         profile = index["profile"]
@@ -110,7 +136,8 @@ def _cmd_build(args: argparse.Namespace) -> int:
         chunked = sum(1 for f in index["files"] if f.get("chunks"))
         flagged = sum(1 for f in index["files"] if f.get("risk_flags"))
 
-        print(f"Wrote META_ZIP_FRONT.md and META_ZIP_INDEX.json to {args.output}/")
+        wrote = "META_ZIP_INDEX.json" if manifest_only else "META_ZIP_FRONT.md and META_ZIP_INDEX.json"
+        print(f"Wrote {wrote} to {output_dir}/")
         print(f"  Profile:  {profile}")
         print(f"  Files:    {file_count}")
         if modules:
@@ -122,12 +149,29 @@ def _cmd_build(args: argparse.Namespace) -> int:
         if warnings:
             print(f"  Warnings: {len(warnings)}")
     else:
-        print("--- META_ZIP_FRONT.md ---")
-        print(front)
-        print("--- META_ZIP_INDEX.json ---")
-        print(json.dumps(index, indent=2))
+        _print_build_output(front, index, args.output_format, manifest_only)
 
     return 0
+
+
+def _print_build_output(front: str, index: dict, fmt: str, manifest_only: bool) -> None:
+    """Print build output to stdout in the requested format."""
+    if fmt == "json":
+        if manifest_only:
+            print(json.dumps(index, indent=2))
+        else:
+            print(json.dumps({"front_md": front, "index": index}, indent=2))
+    elif fmt == "ndjson":
+        # One JSON line per file entry — useful for piping
+        for f in index["files"]:
+            print(json.dumps(f))
+    else:
+        # pretty (default)
+        if not manifest_only:
+            print("--- META_ZIP_FRONT.md ---")
+            print(front)
+        print("--- META_ZIP_INDEX.json ---")
+        print(json.dumps(index, indent=2))
 
 
 def _cmd_explain(args: argparse.Namespace) -> int:
@@ -236,6 +280,7 @@ def _build_explain_data(index: dict) -> dict:
         "modules": index.get("modules", []),
         "plans": index["plans"],
         "warnings": index.get("warnings", []),
+        "capabilities": index.get("capabilities", []),
         "low_confidence_count": sum(1 for f in files if f["confidence"] < 0.5),
     }
 
@@ -259,7 +304,9 @@ def _cmd_validate(args: argparse.Namespace) -> int:
         return 1
 
     file_count = len(data.get("files", []))
-    print(f"Valid META_ZIP_INDEX.json ({file_count} files, version {data.get('version', '?')})")
+    caps = data.get("capabilities", [])
+    caps_str = f", capabilities: {', '.join(caps)}" if caps else ""
+    print(f"Valid META_ZIP_INDEX.json ({file_count} files, version {data.get('version', '?')}{caps_str})")
     return 0
 
 
