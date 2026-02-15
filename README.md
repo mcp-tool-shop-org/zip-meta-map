@@ -2,139 +2,148 @@
   <img src="logo.png" alt="zip-meta-map logo" width="200">
 </p>
 
-# zip-meta-map
+<h1 align="center">zip-meta-map</h1>
 
-zip-meta-map turns a ZIP (or folder) into a guided, LLM-friendly bundle by embedding a small metadata layer that answers:
+<p align="center">
+  <a href="https://github.com/mcp-tool-shop-org/zip-meta-map/actions/workflows/ci.yml"><img src="https://github.com/mcp-tool-shop-org/zip-meta-map/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://pypi.org/project/zip-meta-map/"><img src="https://img.shields.io/pypi/v/zip-meta-map" alt="PyPI"></a>
+  <a href="https://github.com/mcp-tool-shop-org/zip-meta-map/blob/main/LICENSE"><img src="https://img.shields.io/github/license/mcp-tool-shop-org/zip-meta-map" alt="License"></a>
+  <img src="https://img.shields.io/badge/spec-v0.2-blue" alt="Spec v0.2">
+  <img src="https://img.shields.io/badge/python-3.11%2B-blue" alt="Python 3.11+">
+</p>
 
-- **What's in here?**
-- **What matters first?**
-- **How should an agent/LLM traverse this without drowning in context?**
+<p align="center">
+Turn a ZIP or folder into a guided, LLM-friendly metadata bundle.<br>
+<strong>Map + Route + Guardrails</strong> — inside the archive itself.
+</p>
 
-It does this by generating a deterministic "front page" plus a structured index with roles, confidence, reasons, and traversal plans with byte budgets.
+---
 
-This repo is currently alpha (v0.1.0-alpha.0). The format and schemas are intentionally strict so downstream tools can rely on them.
+## What it does
 
-## Why this exists
+zip-meta-map generates a deterministic metadata layer that answers three questions for AI agents:
 
-Raw archives are hostile to context-limited systems:
+- **What's in here?** — role-classified file inventory with confidence scores
+- **What matters first?** — ranked start\_here list with excerpts
+- **How do I navigate without drowning in context?** — traversal plans with byte budgets
 
-- Reading everything is wasteful (and often impossible).
-- Sampling randomly misses critical entrypoints and contracts.
-- "Just search" doesn't teach the model how the repo is shaped.
+## Quick demo
 
-zip-meta-map ships the missing piece: a **map + a route + guardrails**, inside the archive itself.
+```bash
+$ zip-meta-map build my-project/ -o output/ --summary
 
-## What it generates
+Wrote META_ZIP_FRONT.md and META_ZIP_INDEX.json to output/
+  Profile:  python_cli
+  Files:    47
+  Modules:  8
+  Flagged:  2 file(s) with risk flags
+```
 
-When you run `zip-meta-map build`, it writes two files into the output:
+```bash
+$ zip-meta-map explain my-project/
 
-- **`META_ZIP_FRONT.md`** A compact orientation page: what this is, where to start, module structure, guardrails, and a role summary.
-- **`META_ZIP_INDEX.json`** A machine-readable index of every file, including:
-  - role + tags
-  - confidence (0.0-1.0) and a reason string
-  - start\_here ordering with excerpts
-  - chunk maps for large files
-  - module (folder-level) summaries
-  - risk flags and safety warnings
-  - traversal plans with budget\_bytes, max\_total\_bytes, and stop semantics
+Profile:  python_cli
+Files:    47
 
-Schemas are included and enforced in CI and at runtime:
+Top files to read first:
+  README.md                     [doc]        conf=0.95  README is primary documentation
+  src/app/main.py               [entrypoint] conf=0.95  matches profile entrypoint pattern
+  pyproject.toml                [config]     conf=0.95  Python project configuration
 
-- `meta_zip_index.schema.json`
-- `meta_zip_policy.schema.json`
+Overview plan:
+  Quick orientation — what is this tool and how is it structured?
+  1. READ README.md for project purpose and usage
+  2. READ pyproject.toml for dependencies and entry points
+  3. READ entrypoint file to understand CLI structure
+  Budget: ~32 KB
+```
 
-An optional **`META_ZIP_POLICY.json`** input lets you tune ignore rules and plan budgets safely.
+See the [golden demo output](examples/tiny_python_cli/) for a complete example.
 
 ## Install
 
-From source (recommended for alpha):
+```bash
+pip install zip-meta-map
+```
+
+Or with [pipx](https://pipx.pypa.io/):
+
+```bash
+pipx install zip-meta-map
+```
+
+From source:
 
 ```bash
 git clone https://github.com/mcp-tool-shop-org/zip-meta-map
 cd zip-meta-map
-python -m venv .venv
-source .venv/bin/activate
-pip install -e .
+pip install -e ".[dev]"
 ```
 
-## Quickstart
+## GitHub Action
 
-### Build metadata for a folder
+Use zip-meta-map in CI with the composite action:
+
+```yaml
+- name: Generate metadata map
+  uses: mcp-tool-shop-org/zip-meta-map@v0
+  with:
+    path: .
+```
+
+This installs the tool, builds metadata, and writes a step summary. Outputs include `index-path`, `front-path`, `profile`, `file-count`, and `warnings-count`.
+
+See [examples/github-action/](examples/github-action/) for a full workflow.
+
+## What it generates
+
+| File | Purpose |
+|------|---------|
+| `META_ZIP_FRONT.md` | Human-readable orientation page |
+| `META_ZIP_INDEX.json` | Machine-readable index (roles, confidence, plans, chunks, excerpts, risk flags) |
+| `META_ZIP_REPORT.md` | Detailed browseable report (with `--report md`) |
+
+## CLI reference
 
 ```bash
+# Build metadata for a folder or ZIP
 zip-meta-map build path/to/repo -o output/
-```
+zip-meta-map build archive.zip -o output/
 
-### Build metadata for an existing ZIP
+# Build with step summary and report
+zip-meta-map build . -o output/ --summary --report md
 
-```bash
-zip-meta-map build path/to/archive.zip -o output/
-```
+# Output formats for piping
+zip-meta-map build . --format json          # JSON to stdout
+zip-meta-map build . --format ndjson        # one JSON line per file
+zip-meta-map build . --manifest-only        # skip FRONT.md
 
-### Explain what the tool detected
-
-```bash
+# Explain what the tool detected
 zip-meta-map explain path/to/repo
-```
-
-The explain output highlights:
-
-- detected profile
-- role distribution
-- module summaries
-- top-10 recommended files
-- the "overview" traversal plan
-- safety warnings
-- low-confidence warnings
-
-### Machine-readable explain
-
-```bash
 zip-meta-map explain path/to/repo --json
-```
 
-### Validate an existing index
-
-```bash
+# Validate an existing index
 zip-meta-map validate META_ZIP_INDEX.json
+
+# Policy overrides
+zip-meta-map build . --policy META_ZIP_POLICY.json -o output/
 ```
-
-### Advanced mode (policy overrides)
-
-Provide a policy file to tune ignore globs and plan budgets:
-
-```bash
-zip-meta-map build path/to/repo --policy META_ZIP_POLICY.json -o output/
-```
-
-The tool validates policy input against schema and records whether policy was applied in the output index.
 
 ## Profiles
 
-zip-meta-map categorizes differently depending on the detected repo "shape." Current built-ins:
+Auto-detected by repo shape. Current built-ins:
 
-- `python_cli`
-- `node_ts_tool`
-- `monorepo`
-
-Profiles define:
-
-- default ignore patterns (generated/vendor directories, caches)
-- role/entrypoint heuristics
-- traversal plans and budgets (overview, debug, add\_feature, security\_review, deep\_dive)
+| Profile | Detected by | Plans |
+|---------|------------|-------|
+| `python_cli` | `pyproject.toml`, `setup.py` | overview, debug, add\_feature, security\_review, deep\_dive |
+| `node_ts_tool` | `package.json`, `tsconfig.json` | overview, debug, add\_feature, security\_review, deep\_dive |
+| `monorepo` | `pnpm-workspace.yaml`, `lerna.json` | overview, debug, add\_feature, security\_review, deep\_dive |
 
 See [docs/PROFILES.md](docs/PROFILES.md).
 
-## Roles, confidence, and reasons
+## Roles and confidence
 
-Every file entry includes:
-
-- **role** (bounded vocabulary, stable)
-- **tags** (extensible)
-- **confidence** (0.0-1.0)
-- **reason** (why the tool labeled it that way)
-
-Confidence bands:
+Every file entry includes a **role** (bounded vocabulary), **confidence** (0.0–1.0), and **reason**.
 
 | Band | Range | Meaning |
 |------|-------|---------|
@@ -143,29 +152,20 @@ Confidence bands:
 | Fair | >= 0.5 | Extension-only or weak positional signal |
 | Low  | < 0.5 | Assigned `unknown`; reason explains the ambiguity |
 
-This is deliberate: the index is useful *and* debuggable.
-
 ## Progressive disclosure (v0.2)
 
-For files larger than 32 KB, the index includes a **chunk map** with stable IDs, line ranges, and headings. This lets agents read large files in bounded pieces without losing their place.
+- **Chunk maps** for files > 32 KB — stable IDs, line ranges, headings
+- **Module summaries** — directory-level role distribution and key files
+- **Excerpts** — first few lines of high-value files
+- **Risk flags** — exec\_shell, secrets\_like, network\_io, path\_traversal, binary\_masquerade, binary\_executable
+- **Capabilities** — `capabilities[]` advertises which optional features are populated
 
-**Module summaries** group files by directory, showing role distribution, key files, and a heuristic description of what each folder contains.
+## Stability
 
-**Excerpts** give agents the first few lines of high-value files without reading the full content.
-
-**Risk flags** detect heuristic signals per file: shell execution, credential patterns, network I/O, path traversal, and binary masquerading as text.
-
-## Determinism and safety
-
-zip-meta-map is designed to be:
-
-- **Deterministic**: same input -> same output (stable ordering, stable heuristics)
-- **Strict**: outputs are validated against JSON Schema before writing
-- **Conservative**: generated/vendor directories are flagged and discouraged from ingestion
-- **Auditable**: reasons and confidence make the classification inspectable
-- **Safe**: risk flags and warnings surface security concerns proactively
-
-The index is guidance, not gospel. Consumers should still validate archive contents independently.
+- Spec version follows semver-like rules: minor bumps add fields, major bumps break consumers
+- `capabilities[]` is the official feature negotiation mechanism
+- Older consumers that ignore unknown fields will continue to work across minor bumps
+- See [docs/SPEC.md](docs/SPEC.md) for the full contract
 
 ## Repo structure
 
@@ -173,16 +173,20 @@ The index is guidance, not gospel. Consumers should still validate archive conte
 src/zip_meta_map/
   cli.py        # argparse CLI (build, explain, validate)
   builder.py    # scan -> index -> validate -> write
-  scanner.py    # directory + ZIP scanning with SHA-256, incremental cache
+  report.py     # GitHub step summary + detailed report
+  scanner.py    # directory + ZIP scanning with SHA-256
   roles.py      # role assignment heuristics + confidence
   profiles.py   # built-in profiles + traversal plans
-  chunker.py    # deterministic text chunking (headings + lines)
+  chunker.py    # deterministic text chunking
   modules.py    # folder-level module summaries
   safety.py     # risk flag detection + warning generation
   schema/       # JSON Schemas and loaders
 docs/
   SPEC.md       # v0.2 contract (format semantics)
   PROFILES.md   # profile behaviors + plans
+examples/
+  tiny_python_cli/   # golden demo output
+  github-action/     # consumer workflow example
 tests/
   fixtures/     # tiny fixture repos
 ```
@@ -196,16 +200,15 @@ This project is small on purpose. If you contribute:
 - add tests for any new heuristic
 - don't loosen schemas without updating docs/SPEC.md and goldens
 
-Run locally:
-
 ```bash
 pytest
 ```
 
 ## Documentation
 
-- [Specification (v0.2)](docs/SPEC.md) - the contract for all generated files
-- [Profiles](docs/PROFILES.md) - built-in project type profiles
+- [Specification (v0.2)](docs/SPEC.md) — the contract for all generated files
+- [Profiles](docs/PROFILES.md) — built-in project type profiles
+- [Security](SECURITY.md) — vulnerability reporting
 
 ## License
 

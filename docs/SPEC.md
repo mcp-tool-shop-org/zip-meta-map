@@ -212,6 +212,34 @@ The index is **advisory, not authoritative**. Consumers should:
 
 The index is a map, not a lock. It helps you navigate; it doesn't prevent you from looking elsewhere.
 
+## Capabilities (v0.2)
+
+The top-level `capabilities` array advertises which optional features are populated in the index:
+
+| Capability | Present when |
+|------------|-------------|
+| `chunks` | At least one file has a `chunks` array |
+| `excerpts` | At least one file has an `excerpt` field |
+| `modules` | The `modules` array is present and non-empty |
+| `risk_flags` | At least one file has a `risk_flags` array |
+| `warnings` | The `warnings` array is present and non-empty |
+
+Consumers should check `capabilities` to decide which features to use. This is the official feature negotiation mechanism.
+
+## Stability Promise
+
+The spec version follows semver-like rules:
+
+- **Minor version bumps** (e.g. 0.2 -> 0.3) add new optional fields. Existing consumers that ignore unknown fields will continue to work.
+- **Major version bumps** (e.g. 0.x -> 1.0) may remove or rename required fields. These are breaking changes.
+- **New roles** are always a minor bump — the `role` enum may grow, but existing values are never removed.
+- **New capabilities** are always a minor bump — the `capabilities` array may gain new values.
+
+Consumers should:
+- Parse `version` to check compatibility
+- Use `capabilities` for feature detection
+- Ignore unknown top-level fields gracefully (forward compatibility)
+
 ## Incremental Mode (v0.2)
 
 For directories (not ZIPs), the tool supports incremental scanning:
