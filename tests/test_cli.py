@@ -252,8 +252,9 @@ def test_cli_explain_json_includes_capabilities(capsys):
 # ── Phase 4: Step summary and report flags ──
 
 
-def test_cli_build_summary_stdout(capsys):
+def test_cli_build_summary_stdout(capsys, monkeypatch):
     """--summary without GITHUB_STEP_SUMMARY should print to stdout."""
+    monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
     code = main(["build", str(FIXTURE_DIR), "--summary"])
     assert code == 0
     captured = capsys.readouterr()
@@ -326,8 +327,9 @@ def test_cli_build_report_output_dir(tmp_path, capsys):
     assert "zip-meta-map Report:" in content
 
 
-def test_cli_build_summary_and_report_together(tmp_path, capsys):
+def test_cli_build_summary_and_report_together(tmp_path, capsys, monkeypatch):
     """--summary and --report md should both work together."""
+    monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
     out = tmp_path / "output"
     code = main(["build", str(FIXTURE_DIR), "-o", str(out), "--summary", "--report", "md"])
     assert code == 0
@@ -338,8 +340,9 @@ def test_cli_build_summary_and_report_together(tmp_path, capsys):
     assert (out / "META_ZIP_REPORT.md").exists()
 
 
-def test_cli_build_summary_with_manifest_only(capsys):
+def test_cli_build_summary_with_manifest_only(capsys, monkeypatch):
     """--summary should work with --manifest-only."""
+    monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
     code = main(["build", str(FIXTURE_DIR), "--manifest-only", "--summary"])
     assert code == 0
     captured = capsys.readouterr()
