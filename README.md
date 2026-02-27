@@ -217,6 +217,31 @@ pytest
 - [Profiles](docs/PROFILES.md) — built-in project type profiles
 - [Security](SECURITY.md) — vulnerability reporting
 
+## Security & Data Scope
+
+| Aspect | Detail |
+|--------|--------|
+| **Data touched** | ZIP archives and directories (read-only), metadata output files (JSON/Markdown) |
+| **Data NOT touched** | No telemetry, no analytics, no network calls, no code execution from archives |
+| **Permissions** | Read: input files/archives. Write: output metadata files to user-specified paths |
+| **Network** | None — fully offline CLI tool |
+| **Telemetry** | None collected or sent |
+
+See [SECURITY.md](SECURITY.md) for vulnerability reporting and security features.
+
+## Scorecard
+
+| Category | Score |
+|----------|-------|
+| A. Security | 10 |
+| B. Error Handling | 10 |
+| C. Operator Docs | 10 |
+| D. Shipping Hygiene | 10 |
+| E. Identity (soft) | 10 |
+| **Overall** | **50/50** |
+
+> Full audit: [SHIP_GATE.md](SHIP_GATE.md) · [SCORECARD.md](SCORECARD.md)
+
 ## License
 
 MIT
