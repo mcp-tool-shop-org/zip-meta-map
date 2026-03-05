@@ -14,7 +14,7 @@ export const config: SiteConfig = {
     headlineAccent: 'for LLM navigation.',
     description: 'Generate a deterministic metadata layer that tells AI agents what\'s inside, what matters first, and how to navigate without drowning in context.',
     primaryCta: { href: '#install', label: 'Get started' },
-    secondaryCta: { href: '#features', label: 'See features' },
+    secondaryCta: { href: 'handbook/', label: 'Read the Handbook' },
     previews: [
       { label: 'Install', code: 'pip install zip-meta-map' },
       { label: 'Build', code: 'zip-meta-map build my-project/ -o output/\n# Profile: python_cli  Files: 47' },
