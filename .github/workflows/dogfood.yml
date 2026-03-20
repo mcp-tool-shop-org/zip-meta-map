@@ -30,7 +30,7 @@ jobs:
       - name: "Step: profile-self"
         id: profile_self
         run: |
-          zip-meta-map . --json | tee /tmp/profile.log
+          zip-meta-map build . --format json | tee /tmp/profile.log
           EXIT_CODE=${PIPESTATUS[0]}
           if [ "$EXIT_CODE" -eq 0 ]; then
             echo "status=pass" >> "$GITHUB_OUTPUT"
