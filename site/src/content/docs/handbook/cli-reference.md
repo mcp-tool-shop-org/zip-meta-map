@@ -1,11 +1,11 @@
 ---
 title: CLI Reference
-description: All zip-meta-map commands — build, explain, diff, validate.
+description: All zip-meta-map commands — build, explain, diff, compare, benchmark, validate, serve.
 sidebar:
   order: 2
 ---
 
-Zip Meta Map provides four commands: `build`, `explain`, `diff`, and `validate`.
+Zip Meta Map provides seven commands: `build`, `explain`, `diff`, `compare`, `benchmark`, `validate`, and `serve`.
 
 ## build
 
@@ -61,6 +61,36 @@ zip-meta-map diff old.json new.json --json       # JSON output
 zip-meta-map diff old.json new.json --exit-code  # exit 1 if changes
 ```
 
+## compare
+
+Compare indexes from different repos to find structural similarities (archetype matching):
+
+```bash
+zip-meta-map compare repo-a.json repo-b.json         # similarity scores
+zip-meta-map compare repo-a.json repo-b.json --json   # JSON output
+zip-meta-map compare repo-a.json repo-b.json --exit-code  # exit 1 if similarity < 0.5
+```
+
+Reports overall similarity (0-100%), broken down into:
+- **Role similarity** — cosine similarity on role distributions
+- **Structure similarity** — shared filenames and directory patterns
+- **Plan similarity** — shared traversal plan names
+
+Archetype classification: `near_identical` (85%+), `same_archetype` (65%+), `related` (40%+), `different`.
+
+## benchmark
+
+Measure performance on a directory:
+
+```bash
+zip-meta-map benchmark path/to/repo             # 3 runs per phase
+zip-meta-map benchmark path/to/repo --runs 5    # 5 runs
+zip-meta-map benchmark path/to/repo --cache     # include incremental scan
+zip-meta-map benchmark path/to/repo --json      # JSON output
+```
+
+Reports timing for: scan, role assignment, index build, front generation, validation, and end-to-end.
+
 ## validate
 
 Check an existing index file against the schema:
@@ -68,6 +98,17 @@ Check an existing index file against the schema:
 ```bash
 zip-meta-map validate META_ZIP_INDEX.json
 ```
+
+## serve
+
+Start the MCP server for AI agent consumption:
+
+```bash
+pip install 'zip-meta-map[mcp]'
+zip-meta-map serve
+```
+
+Exposes 5 MCP tools: `build_metadata`, `explain`, `diff_metadata`, `compare_repos`, `validate_index`.
 
 ## Generated files
 

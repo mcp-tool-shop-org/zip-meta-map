@@ -40,26 +40,34 @@ _START_HERE_NAMES: dict[str, int] = {
 
 
 def detect_profile(files: list[ScannedFile]) -> Profile:
-    """Auto-detect a profile from the file listing."""
-    paths = {f.path for f in files}
+    """Auto-detect a profile from the file listing.
 
-    # Check monorepo indicators first
+    Detection order: monorepo first (most specific workspace markers),
+    then language-specific profiles by specificity.
+    """
+    paths = {f.path for f in files}
+    names = {f.path.rsplit("/", 1)[-1] if "/" in f.path else f.path for f in files}
+
+    # Check monorepo indicators first (highest priority)
     monorepo = ALL_PROFILES["monorepo"]
     for detect_file in monorepo.detect_files:
         if detect_file in paths:
             return monorepo
 
-    # Check node/ts
-    node = ALL_PROFILES["node_ts_tool"]
-    for detect_file in node.detect_files:
-        if detect_file in paths:
-            return node
+    # Detection order: Rust > Go > .NET > Java > Node/TS > Python
+    # (more specific markers first)
+    detection_order = ["rust_cli", "go_cli", "dotnet_cli", "java_cli", "node_ts_tool", "python_cli"]
+    for profile_name in detection_order:
+        profile = ALL_PROFILES[profile_name]
+        for detect_file in profile.detect_files:
+            # Support glob-style detect files (e.g., "*.csproj")
+            if "*" in detect_file:
+                from fnmatch import fnmatch
 
-    # Check python
-    python = ALL_PROFILES["python_cli"]
-    for detect_file in python.detect_files:
-        if detect_file in paths:
-            return python
+                if any(fnmatch(n, detect_file) for n in names):
+                    return profile
+            elif detect_file in paths:
+                return profile
 
     return DEFAULT_PROFILE
 
@@ -284,6 +292,12 @@ def build_index(
         caps.append("warnings")
     if caps:
         index["capabilities"] = caps
+
+    # Advertise custom roles if the profile defines any
+    if profile.custom_roles:
+        index["custom_roles"] = {
+            cr.name: cr.description for cr in profile.custom_roles
+        }
 
     return index
 

@@ -103,6 +103,34 @@ def main(argv: list[str] | None = None) -> int:
         help="Exit with code 1 if changes detected (like diff --exit-code)",
     )
 
+    # compare command
+    compare_parser = subparsers.add_parser(
+        "compare", help="Compare two indexes from different repos (archetype matching)"
+    )
+    compare_parser.add_argument("left", type=Path, help="Path to first META_ZIP_INDEX.json")
+    compare_parser.add_argument("right", type=Path, help="Path to second META_ZIP_INDEX.json")
+    compare_parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="Output comparison as JSON",
+    )
+    compare_parser.add_argument(
+        "--exit-code",
+        action="store_true",
+        help="Exit with code 1 if similarity < 0.5 (repos are 'different')",
+    )
+
+    # benchmark command
+    bench_parser = subparsers.add_parser("benchmark", help="Benchmark performance on a directory")
+    bench_parser.add_argument("input", type=Path, help="Directory to benchmark")
+    bench_parser.add_argument("--runs", type=int, default=3, help="Number of runs per phase (default: 3)")
+    bench_parser.add_argument("--cache", action="store_true", help="Also benchmark incremental scanning")
+    bench_parser.add_argument("--json", action="store_true", dest="json_output", help="Output as JSON")
+
+    # serve command
+    subparsers.add_parser("serve", help="Start the MCP server (requires pip install 'zip-meta-map[mcp]')")
+
     # validate command
     validate_parser = subparsers.add_parser("validate", help="Validate a META_ZIP_INDEX.json file against the schema")
     validate_parser.add_argument("input", type=Path, help="Path to a META_ZIP_INDEX.json file")
@@ -121,6 +149,18 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "diff":
         return _cmd_diff(args)
+
+    if args.command == "benchmark":
+        return _cmd_benchmark(args)
+
+    if args.command == "serve":
+        from zip_meta_map.server import main as serve_main
+
+        serve_main()
+        return 0
+
+    if args.command == "compare":
+        return _cmd_compare(args)
 
     if args.command == "validate":
         return _cmd_validate(args)
@@ -371,6 +411,54 @@ def _cmd_diff(args: argparse.Namespace) -> int:
 
     if args.exit_code:
         return 1 if result.has_changes else 0
+    return 0
+
+
+def _cmd_benchmark(args: argparse.Namespace) -> int:
+    input_path: Path = args.input
+    if not input_path.exists() or not input_path.is_dir():
+        print(f"Error: {input_path} is not a directory", file=sys.stderr)
+        return 1
+
+    from zip_meta_map.benchmark import benchmark, format_results
+
+    results = benchmark(input_path, runs=args.runs, use_cache=args.cache)
+
+    if args.json_output:
+        print(json.dumps(results, indent=2))
+    else:
+        print(format_results(results))
+
+    return 0
+
+
+def _cmd_compare(args: argparse.Namespace) -> int:
+    left_path: Path = args.left
+    right_path: Path = args.right
+
+    for path, label in [(left_path, "left"), (right_path, "right")]:
+        if not path.exists():
+            print(f"Error: {label} file {path} does not exist", file=sys.stderr)
+            return 1
+
+    try:
+        left_data = json.loads(left_path.read_text(encoding="utf-8"))
+        right_data = json.loads(right_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as e:
+        print(f"Error: could not read JSON: {e}", file=sys.stderr)
+        return 1
+
+    from zip_meta_map.compare import compare_indices, format_compare_human, format_compare_json
+
+    result = compare_indices(left_data, right_data)
+
+    if args.json_output:
+        print(format_compare_json(result))
+    else:
+        print(format_compare_human(result))
+
+    if args.exit_code:
+        return 0 if result.overall_similarity >= 0.5 else 1
     return 0
 
 

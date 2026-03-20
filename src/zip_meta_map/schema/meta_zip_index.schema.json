@@ -62,6 +62,11 @@
       "type": "array",
       "items": { "type": "string" },
       "description": "Feature flags indicating what optional fields are populated (e.g. chunks, excerpts, modules, risk_flags)"
+    },
+    "custom_roles": {
+      "type": "object",
+      "additionalProperties": { "type": "string" },
+      "description": "Profile-defined custom roles: {role_name: description}"
     }
   },
   "$defs": {
@@ -86,18 +91,8 @@
         },
         "role": {
           "type": "string",
-          "enum": [
-            "entrypoint", "public_api", "source", "internal",
-            "config", "lockfile", "ci",
-            "test", "fixture",
-            "doc", "doc_api", "doc_architecture",
-            "schema",
-            "build", "script",
-            "generated", "vendor",
-            "asset", "data",
-            "unknown"
-          ],
-          "description": "File role from the spec vocabulary (v0.1.1)"
+          "pattern": "^[a-z][a-z0-9_]{0,63}$",
+          "description": "File role — built-in (entrypoint, public_api, source, internal, config, lockfile, ci, test, fixture, doc, doc_api, doc_architecture, schema, build, script, generated, vendor, asset, data, unknown) or profile-defined custom role"
         },
         "confidence": {
           "type": "number",

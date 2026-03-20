@@ -152,8 +152,6 @@ _NAME_ROLES: dict[str, tuple[str, float, str]] = {
     "setup.cfg": ("config", 0.90, "Python setup config"),
     "package.json": ("config", 0.95, "Node.js project configuration"),
     "tsconfig.json": ("config", 0.90, "TypeScript configuration"),
-    "Cargo.toml": ("config", 0.95, "Rust project configuration"),
-    "go.mod": ("config", 0.95, "Go module definition"),
     ".gitignore": ("config", 0.80, "git ignore rules"),
     ".editorconfig": ("config", 0.80, "editor configuration"),
     ".prettierrc": ("config", 0.80, "Prettier configuration"),
@@ -177,6 +175,27 @@ _NAME_ROLES: dict[str, tuple[str, float, str]] = {
     "Procfile": ("build", 0.80, "process definition"),
     "tox.ini": ("build", 0.80, "tox test runner configuration"),
     "noxfile.py": ("build", 0.80, "nox test runner configuration"),
+    # Rust
+    "Cargo.toml": ("config", 0.95, "Rust crate configuration"),
+    "build.rs": ("build", 0.85, "Rust build script"),
+    "clippy.toml": ("config", 0.80, "Clippy linter configuration"),
+    "rustfmt.toml": ("config", 0.80, "rustfmt configuration"),
+    ".rustfmt.toml": ("config", 0.80, "rustfmt configuration"),
+    # Go
+    "go.mod": ("config", 0.95, "Go module definition"),
+    # .NET
+    "Directory.Build.props": ("config", 0.85, ".NET directory build props"),
+    "Directory.Build.targets": ("config", 0.85, ".NET directory build targets"),
+    "nuget.config": ("config", 0.80, "NuGet package configuration"),
+    "global.json": ("config", 0.85, ".NET SDK version pinning"),
+    # Java
+    "pom.xml": ("config", 0.95, "Maven project configuration"),
+    "build.gradle": ("build", 0.90, "Gradle build script"),
+    "build.gradle.kts": ("build", 0.90, "Gradle Kotlin build script"),
+    "settings.gradle": ("config", 0.90, "Gradle settings"),
+    "settings.gradle.kts": ("config", 0.90, "Gradle Kotlin settings"),
+    "gradlew": ("build", 0.80, "Gradle wrapper script"),
+    "mvnw": ("build", 0.80, "Maven wrapper script"),
 }
 
 # ── Extension → role (fallback) ──
@@ -390,7 +409,12 @@ def assign_role(path: str, profile: Profile) -> RoleAssignment:
     if _matches_any(path, _INTERNAL_INDICATORS):
         return RoleAssignment("internal", 0.70, "internal/private module")
 
-    # ── Priority 14: Extension-based roles (lower confidence) ──
+    # ── Priority 14: Custom roles from profile ──
+    for custom in profile.custom_roles:
+        if _matches_any(path, custom.patterns):
+            return RoleAssignment(custom.name, custom.confidence, f"custom role '{custom.name}' via pattern match")
+
+    # ── Priority 15: Extension-based roles (lower confidence) ──
     if ext in _EXT_ROLES:
         role, conf, reason = _EXT_ROLES[ext]
         return RoleAssignment(role, conf, reason)

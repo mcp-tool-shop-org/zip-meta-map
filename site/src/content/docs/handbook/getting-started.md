@@ -51,8 +51,19 @@ Works on ZIP files too — no need to extract first:
 zip-meta-map build archive.zip -o output/
 ```
 
+## MCP server
+
+For AI agents, install with MCP support:
+
+```bash
+pip install 'zip-meta-map[mcp]'
+zip-meta-map serve
+```
+
+This exposes `build_metadata`, `explain`, `diff_metadata`, `compare_repos`, and `validate_index` as MCP tools.
+
 ## Next steps
 
 - Learn all [CLI commands](/zip-meta-map/handbook/cli-reference/)
-- Understand [profiles and role classification](/zip-meta-map/handbook/profiles/)
+- Understand [profiles and role classification](/zip-meta-map/handbook/profiles/) (7 built-in profiles)
 - Explore [progressive disclosure](/zip-meta-map/handbook/progressive-disclosure/) features

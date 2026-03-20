@@ -12,9 +12,9 @@ Zip Meta Map generates a deterministic metadata layer for ZIP archives and folde
 ## What's inside
 
 - **[Getting Started](/zip-meta-map/handbook/getting-started/)** — Install and first build
-- **[CLI Reference](/zip-meta-map/handbook/cli-reference/)** — build, explain, diff, validate commands
-- **[Profiles](/zip-meta-map/handbook/profiles/)** — Auto-detected project types and role classification
-- **[Progressive Disclosure](/zip-meta-map/handbook/progressive-disclosure/)** — Chunk maps, modules, excerpts, and risk flags
+- **[CLI Reference](/zip-meta-map/handbook/cli-reference/)** — build, explain, diff, compare, benchmark, validate, serve
+- **[Profiles](/zip-meta-map/handbook/profiles/)** — 7 built-in profiles, custom roles, and role classification
+- **[Progressive Disclosure](/zip-meta-map/handbook/progressive-disclosure/)** — Chunk maps, modules, excerpts, risk flags, and cross-repo comparison
 - **[Reference](/zip-meta-map/handbook/reference/)** — Quick reference tables
 
 [Back to landing page](/zip-meta-map/)

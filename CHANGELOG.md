@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] — 2026-03-19
+
+### Added
+
+- **4 new profiles**: `rust_cli` (Cargo.toml), `go_cli` (go.mod), `dotnet_cli` (*.csproj/*.sln), `java_cli` (pom.xml/build.gradle) — each with 5 traversal plans and language-appropriate entrypoint detection
+- **Custom role extensions**: profiles can define domain-specific roles with `CustomRole` (name, description, patterns, confidence) — e.g., `project_file` for .csproj, `go_generate` for generated Go files
+- **Cross-repo comparison** (`compare` command): cosine similarity on role distributions, Jaccard on filenames/dirs/plans, archetype classification (near_identical / same_archetype / related / different)
+- **MCP server**: 5 tools (`build_metadata`, `explain`, `diff_metadata`, `compare_repos`, `validate_index`) via `zip-meta-map serve` or `zip-meta-map-server` — requires optional `[mcp]` dependency
+- **Performance benchmarks** (`benchmark` command): phase-by-phase timing (scan, roles, index, front, validate, end-to-end) with per-file throughput metrics and optional incremental cache benchmarks
+- **Parallel scanner**: `scan_directory_parallel()` with ThreadPoolExecutor for large repos (100+ files)
+- Rust/Go/.NET/Java name-based role recognition (Cargo.toml, go.mod, pom.xml, build.gradle, *.csproj, etc.)
+- Glob-based detect_files for profile detection (supports `*.csproj` patterns)
+- `custom_roles` field in index output advertising profile-defined roles
+- Schema relaxed: role field uses pattern validation instead of strict enum to support custom roles
+
+### Changed
+
+- Profile detection order now checks Rust > Go > .NET > Java > Node/TS > Python (more specific markers first)
+- 314 tests (up from ~100), 6 new test files, 4 new fixture directories
+
 ## [1.0.0] — 2026-02-27
 
 ### Changed
@@ -86,3 +106,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 _No unreleased changes._
+
+[1.1.0]: https://github.com/mcp-tool-shop-org/zip-meta-map/compare/v1.0.0...v1.1.0

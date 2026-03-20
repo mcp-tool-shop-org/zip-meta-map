@@ -36,6 +36,19 @@ Automatic detection of potentially dangerous patterns:
 
 The `capabilities[]` array in `META_ZIP_INDEX.json` advertises which optional features are populated. This is the official feature negotiation mechanism — older consumers that ignore unknown fields continue to work across minor version bumps.
 
+## Custom roles
+
+Profiles can define domain-specific roles beyond the built-in vocabulary. For example, the `dotnet_cli` profile adds `project_file` for .csproj files, and the `rust_cli` profile adds `bench` for benchmark files. Custom roles are assigned with their own confidence scores and appear in the `custom_roles` field of the index.
+
+## Cross-repo comparison
+
+The `compare` command measures structural similarity between indexes from different repos:
+
+- **Role similarity** — cosine similarity on role distributions
+- **Structure similarity** — Jaccard index on shared filenames and directory patterns
+- **Plan similarity** — overlap between traversal plan names
+- **Archetype classification** — `near_identical` (85%+), `same_archetype` (65%+), `related` (40%+), `different`
+
 ## Spec versioning
 
 The spec follows semver-like rules: minor bumps add fields, major bumps break consumers. See the full contract in `docs/SPEC.md` in the repository.

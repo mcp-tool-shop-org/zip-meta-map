@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import zipfile
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from fnmatch import fnmatch
 from pathlib import Path, PurePosixPath
@@ -78,6 +80,52 @@ def scan_directory(
         )
 
     return files
+
+
+def scan_directory_parallel(
+    root: Path,
+    ignore_globs: list[str],
+    retain_content: bool = False,
+    max_workers: int | None = None,
+) -> list[ScannedFile]:
+    """Scan a directory using parallel I/O for large repos.
+
+    Uses a thread pool for file reading and hashing.
+    Falls back to sequential scan for small directories (<100 files).
+    """
+    root = root.resolve()
+
+    # Collect paths first (sequential — fast)
+    paths: list[Path] = []
+    for fpath in sorted(root.rglob("*")):
+        if not fpath.is_file():
+            continue
+        rel = fpath.relative_to(root).as_posix()
+        if _should_ignore(rel, ignore_globs):
+            continue
+        paths.append(fpath)
+
+    # For small dirs, just use sequential scan
+    if len(paths) < 100:
+        return scan_directory(root, ignore_globs, retain_content)
+
+    def _process_file(fpath: Path) -> ScannedFile:
+        rel = fpath.relative_to(root).as_posix()
+        data = fpath.read_bytes()
+        return ScannedFile(
+            path=rel,
+            size_bytes=len(data),
+            sha256=_sha256(data),
+            content=data if retain_content else None,
+        )
+
+    workers = max_workers or min(os.cpu_count() or 4, 8)
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        results = list(pool.map(_process_file, paths))
+
+    # Sort by path for deterministic output
+    results.sort(key=lambda f: f.path)
+    return results
 
 
 def scan_zip(

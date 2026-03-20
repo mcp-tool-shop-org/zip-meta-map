@@ -128,8 +128,19 @@ zip-meta-map diff old.json new.json             # human-readable
 zip-meta-map diff old.json new.json --json       # JSON output
 zip-meta-map diff old.json new.json --exit-code  # exit 1 if changes
 
+# Cross-repo comparison (archetype matching)
+zip-meta-map compare repo-a.json repo-b.json         # similarity scores
+zip-meta-map compare repo-a.json repo-b.json --json   # JSON output
+
+# Performance benchmarks
+zip-meta-map benchmark path/to/repo --runs 3
+zip-meta-map benchmark path/to/repo --cache --json
+
 # Validate an existing index
 zip-meta-map validate META_ZIP_INDEX.json
+
+# Start the MCP server (requires pip install 'zip-meta-map[mcp]')
+zip-meta-map serve
 
 # Policy overrides
 zip-meta-map build . --policy META_ZIP_POLICY.json -o output/
@@ -143,7 +154,13 @@ Auto-detected by repo shape. Current built-ins:
 |---------|------------|-------|
 | `python_cli` | `pyproject.toml`, `setup.py` | overview, debug, add\_feature, security\_review, deep\_dive |
 | `node_ts_tool` | `package.json`, `tsconfig.json` | overview, debug, add\_feature, security\_review, deep\_dive |
+| `rust_cli` | `Cargo.toml` | overview, debug, add\_feature, security\_review, deep\_dive |
+| `go_cli` | `go.mod` | overview, debug, add\_feature, security\_review, deep\_dive |
+| `dotnet_cli` | `*.csproj`, `*.sln` | overview, debug, add\_feature, security\_review, deep\_dive |
+| `java_cli` | `pom.xml`, `build.gradle` | overview, debug, add\_feature, security\_review, deep\_dive |
 | `monorepo` | `pnpm-workspace.yaml`, `lerna.json` | overview, debug, add\_feature, security\_review, deep\_dive |
+
+Profiles can also define **custom roles** — project-type-specific file classifications beyond the built-in vocabulary. For example, the `dotnet_cli` profile adds `project_file` and `solution_file` roles.
 
 See [docs/PROFILES.md](docs/PROFILES.md).
 
@@ -158,13 +175,26 @@ Every file entry includes a **role** (bounded vocabulary), **confidence** (0.0�
 | Fair | >= 0.5 | Extension-only or weak positional signal |
 | Low  | < 0.5 | Assigned `unknown`; reason explains the ambiguity |
 
-## Progressive disclosure (v0.2)
+## Progressive disclosure (v0.2+)
 
 - **Chunk maps** for files > 32 KB — stable IDs, line ranges, headings
 - **Module summaries** — directory-level role distribution and key files
 - **Excerpts** — first few lines of high-value files
 - **Risk flags** — exec\_shell, secrets\_like, network\_io, path\_traversal, binary\_masquerade, binary\_executable
 - **Capabilities** — `capabilities[]` advertises which optional features are populated
+- **Custom roles** — profiles can define domain-specific roles with glob patterns and confidence scores
+- **Cross-repo comparison** — cosine similarity on role distributions, archetype matching (near\_identical / same\_archetype / related / different)
+
+## MCP server (v1.1)
+
+Expose zip-meta-map as MCP tools for AI agents:
+
+```bash
+pip install 'zip-meta-map[mcp]'
+zip-meta-map serve
+```
+
+Provides 5 tools: `build_metadata`, `explain`, `diff_metadata`, `compare_repos`, `validate_index`.
 
 ## Stability
 
@@ -177,13 +207,16 @@ Every file entry includes a **role** (bounded vocabulary), **confidence** (0.0�
 
 ```
 src/zip_meta_map/
-  cli.py        # argparse CLI (build, explain, diff, validate)
+  cli.py        # argparse CLI (build, explain, diff, compare, benchmark, validate, serve)
   builder.py    # scan -> index -> validate -> write
   diff.py       # index comparison (diff command)
+  compare.py    # cross-repo archetype comparison
+  benchmark.py  # performance benchmarking
+  server.py     # MCP server (optional dependency)
   report.py     # GitHub step summary + detailed report
-  scanner.py    # directory + ZIP scanning with SHA-256
-  roles.py      # role assignment heuristics + confidence
-  profiles.py   # built-in profiles + traversal plans
+  scanner.py    # directory + ZIP scanning (sequential + parallel)
+  roles.py      # role assignment heuristics + confidence + custom roles
+  profiles.py   # 7 built-in profiles + custom role definitions
   chunker.py    # deterministic text chunking
   modules.py    # folder-level module summaries
   safety.py     # risk flag detection + warning generation
@@ -195,7 +228,7 @@ examples/
   tiny_python_cli/   # golden demo output
   github-action/     # consumer workflow example
 tests/
-  fixtures/     # tiny fixture repos
+  fixtures/     # 7 tiny fixture repos (Python, Node, monorepo, Rust, Go, .NET, Java)
 ```
 
 ## Contributing
