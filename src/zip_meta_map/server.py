@@ -20,9 +20,7 @@ from zip_meta_map.profiles import ALL_PROFILES
 def create_server() -> "Server":
     """Create and configure the MCP server with zip-meta-map tools."""
     if Server is None:
-        raise ImportError(
-            "MCP SDK not installed. Install with: pip install 'zip-meta-map[mcp]'"
-        )
+        raise ImportError("MCP SDK not installed. Install with: pip install 'zip-meta-map[mcp]'")
 
     server = Server("zip-meta-map")
 
@@ -257,10 +255,12 @@ def _handle_validate(arguments: dict) -> list["TextContent"]:
 
     file_count = len(data.get("files", []))
     caps = data.get("capabilities", [])
-    return [TextContent(
-        type="text",
-        text=f"Valid META_ZIP_INDEX.json ({file_count} files, version {data.get('version', '?')}, caps: {caps})",
-    )]
+    return [
+        TextContent(
+            type="text",
+            text=f"Valid META_ZIP_INDEX.json ({file_count} files, version {data.get('version', '?')}, caps: {caps})",
+        )
+    ]
 
 
 def main() -> None:

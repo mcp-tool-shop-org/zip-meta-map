@@ -178,9 +178,7 @@ def compare_indices(left: dict, right: dict) -> CompareResult:
     right_dirs = _extract_dir_patterns(right_files)
     result.shared_patterns = sorted(left_dirs & right_dirs)
 
-    result.structure_similarity = (
-        _jaccard(left_names, right_names) * 0.6 + _jaccard(left_dirs, right_dirs) * 0.4
-    )
+    result.structure_similarity = _jaccard(left_names, right_names) * 0.6 + _jaccard(left_dirs, right_dirs) * 0.4
 
     # Plan comparison
     left_plans = set(left.get("plans", {}).keys())
@@ -192,9 +190,7 @@ def compare_indices(left: dict, right: dict) -> CompareResult:
 
     # Overall similarity (weighted blend)
     result.overall_similarity = (
-        result.role_similarity * 0.50
-        + result.structure_similarity * 0.30
-        + result.plan_similarity * 0.20
+        result.role_similarity * 0.50 + result.structure_similarity * 0.30 + result.plan_similarity * 0.20
     )
 
     return result

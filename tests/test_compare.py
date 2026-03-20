@@ -23,7 +23,8 @@ def _minimal_index(profile: str = "python_cli", files: list[dict] | None = None,
         "profile": profile,
         "start_here": ["README.md"],
         "ignore": [".git/**"],
-        "files": files or [
+        "files": files
+        or [
             {"path": "README.md", "size_bytes": 100, "sha256": "a" * 64, "role": "doc", "confidence": 0.95},
             {"path": "src/main.py", "size_bytes": 200, "sha256": "b" * 64, "role": "entrypoint", "confidence": 0.9},
             {"path": "tests/test_main.py", "size_bytes": 150, "sha256": "c" * 64, "role": "test", "confidence": 0.85},
@@ -92,11 +93,13 @@ def test_identical_indices():
 
 def test_same_profile_different_files():
     left = _minimal_index()
-    right = _minimal_index(files=[
-        {"path": "README.md", "size_bytes": 100, "sha256": "a" * 64, "role": "doc", "confidence": 0.95},
-        {"path": "src/app.py", "size_bytes": 300, "sha256": "d" * 64, "role": "source", "confidence": 0.8},
-        {"path": "tests/test_app.py", "size_bytes": 200, "sha256": "e" * 64, "role": "test", "confidence": 0.85},
-    ])
+    right = _minimal_index(
+        files=[
+            {"path": "README.md", "size_bytes": 100, "sha256": "a" * 64, "role": "doc", "confidence": 0.95},
+            {"path": "src/app.py", "size_bytes": 300, "sha256": "d" * 64, "role": "source", "confidence": 0.8},
+            {"path": "tests/test_app.py", "size_bytes": 200, "sha256": "e" * 64, "role": "test", "confidence": 0.85},
+        ]
+    )
     result = compare_indices(left, right)
     # Overlapping roles (doc, test) but different (entrypoint vs source) → moderate similarity
     assert result.role_similarity > 0.5
@@ -105,11 +108,14 @@ def test_same_profile_different_files():
 
 def test_different_profiles():
     left = _minimal_index(profile="python_cli")
-    right = _minimal_index(profile="rust_cli", files=[
-        {"path": "README.md", "size_bytes": 100, "sha256": "a" * 64, "role": "doc", "confidence": 0.95},
-        {"path": "src/main.rs", "size_bytes": 200, "sha256": "f" * 64, "role": "entrypoint", "confidence": 0.9},
-        {"path": "Cargo.toml", "size_bytes": 150, "sha256": "g" * 64, "role": "config", "confidence": 0.95},
-    ])
+    right = _minimal_index(
+        profile="rust_cli",
+        files=[
+            {"path": "README.md", "size_bytes": 100, "sha256": "a" * 64, "role": "doc", "confidence": 0.95},
+            {"path": "src/main.rs", "size_bytes": 200, "sha256": "f" * 64, "role": "entrypoint", "confidence": 0.9},
+            {"path": "Cargo.toml", "size_bytes": 150, "sha256": "g" * 64, "role": "config", "confidence": 0.95},
+        ],
+    )
     result = compare_indices(left, right)
     assert result.left_profile == "python_cli"
     assert result.right_profile == "rust_cli"
@@ -118,23 +124,31 @@ def test_different_profiles():
 
 
 def test_completely_different():
-    left = _minimal_index(files=[
-        {"path": "data.csv", "size_bytes": 1000, "sha256": "a" * 64, "role": "data", "confidence": 0.75},
-    ], plans={})
-    right = _minimal_index(files=[
-        {"path": "main.rs", "size_bytes": 500, "sha256": "b" * 64, "role": "source", "confidence": 0.6},
-    ], plans={"overview": {"description": "test", "steps": ["READ"]}})
+    left = _minimal_index(
+        files=[
+            {"path": "data.csv", "size_bytes": 1000, "sha256": "a" * 64, "role": "data", "confidence": 0.75},
+        ],
+        plans={},
+    )
+    right = _minimal_index(
+        files=[
+            {"path": "main.rs", "size_bytes": 500, "sha256": "b" * 64, "role": "source", "confidence": 0.6},
+        ],
+        plans={"overview": {"description": "test", "steps": ["READ"]}},
+    )
     result = compare_indices(left, right)
     assert result.archetype_match == "different"
 
 
 def test_shared_plans():
     left = _minimal_index()
-    right = _minimal_index(plans={
-        "overview": {"description": "Quick overview", "steps": ["READ README.md"]},
-        "deep_dive": {"description": "Deep dive", "steps": ["READ all"]},
-        "custom": {"description": "Custom plan", "steps": ["DO stuff"]},
-    })
+    right = _minimal_index(
+        plans={
+            "overview": {"description": "Quick overview", "steps": ["READ README.md"]},
+            "deep_dive": {"description": "Deep dive", "steps": ["READ all"]},
+            "custom": {"description": "Custom plan", "steps": ["DO stuff"]},
+        }
+    )
     result = compare_indices(left, right)
     assert "overview" in result.shared_plans
     assert "deep_dive" in result.shared_plans

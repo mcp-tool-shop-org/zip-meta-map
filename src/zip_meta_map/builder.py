@@ -295,9 +295,7 @@ def build_index(
 
     # Advertise custom roles if the profile defines any
     if profile.custom_roles:
-        index["custom_roles"] = {
-            cr.name: cr.description for cr in profile.custom_roles
-        }
+        index["custom_roles"] = {cr.name: cr.description for cr in profile.custom_roles}
 
     return index
 
